@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { Topbar } from './topbar'
 import { Sidebar } from './sidebar'
 import { ChatView } from '@/features/chat/chat-view'
+import { SessionsView } from '@/features/sessions/sessions-view'
+import { SettingsView } from '@/features/settings/settings-view'
 import { useConversation } from '@/lib/store'
 import { useHealth } from '@/lib/use-health'
 
@@ -40,7 +42,13 @@ export function AppShell() {
           <Sidebar collapsed={collapsed} active={active} onNavigate={setActive} />
           <main className="min-h-0 flex-1 overflow-hidden p-1.5 pl-0">
             <div className="content-bezel flex h-full min-h-0 flex-col overflow-hidden">
-              <ChatView blocks={convo.blocks} turnActive={convo.turnActive} />
+              {active === 'sessions' ? (
+                <SessionsView />
+              ) : active === 'settings' ? (
+                <SettingsView />
+              ) : (
+                <ChatView blocks={convo.blocks} turnActive={convo.turnActive} />
+              )}
             </div>
           </main>
         </div>
