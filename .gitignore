@@ -2,9 +2,11 @@
 /target
 **/*.rs.bk
 
-# 本地覆盖配置与探针生成的本地 profile（内置 profile 会入库，本地实测覆盖不入库）
-profiles/*.local.toml
+# 本地配置（kestrel.example.toml 入库，用户实际配置不入库）
+/kestrel.toml
 kestrel.local.toml
+# 探针生成的本地 profile（内置 profile 入库，本地实测覆盖不入库）
+profiles/*.local.toml
 
 # 会话数据（运行时产物，永不入库）
 /sessions/

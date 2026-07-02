@@ -1,6 +1,13 @@
 # 贡献指南
 
-感谢关注 Kestrel。在提交代码前请读完这一页——规则不多，但每条都会被 CI 强制。
+先读 [AGENTS.md](AGENTS.md)——它是本仓库的协作契约（设计铁律、目录/代码约定、
+安全红线、Git 规范）。本页只讲怎么把改动提交上来。
+
+## 环境
+
+- Rust 2024（`rust-version` 见 `Cargo.toml`），`rustup` 装 stable 即可。
+- 起一个 OpenAI 兼容后端联调：llama-server（`--jinja`）或 LM Studio。
+- 运行方式见 [README.md](README.md)。
 
 ## 提交前自检
 
@@ -8,26 +15,19 @@
 cargo fmt --all
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
+cargo deny check          # 依赖白名单 + 许可证 + 依赖方向
 ```
 
-CI 会以同样的命令（外加 `cargo deny check`）作为硬门槛，任何一项失败即拒绝合并。
+CI 以同样的命令作为硬门槛，任何一项失败即拒绝合并。warning 即 error。
 
-## 架构纪律
+## 提交流程
 
-动手前先读 [docs/architecture.md](docs/architecture.md)，特别是：
+1. 从最新 `main` 开分支，一个分支解决一个清晰问题。
+2. 遵守 [AGENTS.md](AGENTS.md) 的设计铁律——尤其前缀稳定性、token 预算、依赖方向。
+   重大设计/选型变更先在 [docs/adr/](docs/adr/) 落一个 ADR。
+3. 新功能附带测试；涉及 agent 确定性行为的，优先用回放 fixture（`tests/replays/`）。
+4. commit 用英文 Conventional Commits：`feat(core): ...` / `fix(backend): ...` / `docs: ...`，
+   scope 用 crate 短名。
+5. 开 PR，说明动机与影响范围。
 
-1. **依赖方向铁律（§4.1）**：`前端 -> core <- 适配器`。core 不得依赖任何适配器 crate；适配器之间互不依赖；共享类型一律下沉到 `kestrel-protocol`。
-2. **前缀稳定性（原则 1）**：任何让 system prompt、工具定义、历史前缀变得不确定的改动（时间戳、随机排序、原地改写历史）都会被拒绝——这不是风格问题，是产品的性能命脉。
-3. **固定 token 预算（原则 2）**：新增工具或修改 schema 前先算 token 账；预算表在 docs/architecture.md。
-4. **重大设计变更走 ADR**：在 [docs/adr/](docs/adr/) 新增编号递增的决策记录，写明备选方案、否决理由与重开条件。
-
-## 代码规范
-
-- 每个 crate 的 `lib.rs` 顶部模块文档声明职责边界与禁止依赖，改动语义时同步更新。
-- 公开 API 必须有文档注释（`missing_docs` 是 warn，CI 里 warning 即 error）。
-- 不使用 emoji 或装饰性 Unicode 符号（代码、注释、文档、日志输出一律纯文本）。
-- 新功能附带测试；涉及 agent 行为的，优先用回放 fixture（`tests/replays/`）。
-
-## 提交信息
-
-采用 [Conventional Commits](https://www.conventionalcommits.org/)：`feat(core): ...` / `fix(backend): ...` / `docs: ...`。scope 用 crate 短名（protocol/core/backend/tools/store/cli）。
+对照 [AGENTS.md 第 10 节](AGENTS.md) 的交付前检查清单自查后再提。

@@ -14,7 +14,8 @@
 - **能力探针**：接入新模型自动跑 30 秒微基准，生成工具调用协议与编辑格式 profile，换模型零配置。
 - **成本模型反转**：第一个为"token 免费、延迟贵"设计的 agent——空闲算力用于投机预计算（体感秒回）与夜班自主家务；北极星是本地 LoRA 自我进化：云端 agent 记笔记，Kestrel 做梦（[docs/vision.md](docs/vision.md)）。
 
-完整设计见 [docs/architecture.md](docs/architecture.md)；决策记录与调研报告见 [docs/](docs/README.md)。
+完整设计见 [docs/architecture.md](docs/architecture.md)；决策记录与调研报告见 [docs/](docs/README.md)；
+协作约定见 [AGENTS.md](AGENTS.md)，贡献流程见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ## Workspace 结构
 
