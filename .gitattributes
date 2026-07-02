@@ -1,0 +1,2 @@
+# 仓库内统一 LF（跨平台协作的基线；Windows 检出也保持 LF，Rust 工具链无碍）
+* text=auto eol=lf
