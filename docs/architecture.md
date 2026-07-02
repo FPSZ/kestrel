@@ -354,7 +354,7 @@ enum Decision  { Allow, AskUser, Deny }
 | **M1 骨架**（已交付） | workspace + protocol + core loop + OpenAI 兼容 backend（覆盖 llama.cpp/LM Studio）+ read/search/edit/shell + 权限门 + JSONL 事件日志 + REPL CLI + 回放冒烟测试 | 独奏（仅主脑） |
 | **M2 剧场核心** | 模型池 + 作业路由 + 副手（异地压缩/摘要）+ actor 事件 + 机组账本 | 主脑 + 副手 |
 | **M3 全机组** | 书记（记忆检索）+ 审校（高危复核）+ 能力探针 + 回放测试进 CI | 全机组 |
-| **M4 扩展** | browser/process 工具 + 状态树分支（slot save/restore）+ MCP 外接桥 + **投机代理**（ADR-0004） | + 时间旅行、秒回 |
+| **M4 扩展** | browser/process 工具 + 状态树分支（slot save/restore）+ MCP 外接桥 + **投机代理**（ADR-0004）+ **Loadout 装备编组**（声明式能力编组 + 成本感知编译器，ADR-0006） | + 时间旅行、秒回 |
 | **M5 夜班** | 闲时自主家务：记忆蒸馏、索引、探针复跑、草稿起草 + 夜班报告（默认只读，ADR-0004） | + 夜班 |
 | **M6 睡眠周期** | 本地 LoRA 自我进化：偏好数据管道 -> 深睡训练 -> 探针考试上岗（北极星，见 docs/vision.md，落地前另立 ADR） | 会做梦的机组 |
 | **v2 预留** | `kestrel-server`（axum + WebUI）+ 多会话隔离 + 认证——给朋友用 | 不改 core 一行 |
@@ -377,6 +377,9 @@ enum Decision  { Allow, AskUser, Deny }
 - [ADR-0001 语言选型：Rust](adr/0001-language-rust.md)
 - [ADR-0002 架构风格：库核心 + 薄适配器 + 事件流](adr/0002-style-library-core-event-stream.md)
 - [ADR-0003 已否决方案速查](adr/0003-rejected-alternatives.md)
+- [ADR-0004 成本模型反转：为"token 免费、延迟贵"设计](adr/0004-inverted-cost-model.md)
+- [ADR-0005 能力披露分层：渐进式披露，但只许向尾部追加](adr/0005-capability-disclosure.md)
+- [ADR-0006 Loadout：声明式能力编组与分发](adr/0006-loadout-declarative-build.md)
 
 本文档中的调研结论（§2、§5.4 等）的完整证据见 [research/](research/)。
 
