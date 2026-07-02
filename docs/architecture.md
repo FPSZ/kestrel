@@ -351,7 +351,7 @@ enum Decision  { Allow, AskUser, Deny }
 
 | 阶段 | 交付 | 机组形态 |
 | --- | --- | --- |
-| **M1 骨架** | workspace + protocol + core loop + llama.cpp backend + shell/read/edit/search + CLI + 事件日志 | 独奏（仅主脑） |
+| **M1 骨架**（已交付） | workspace + protocol + core loop + OpenAI 兼容 backend（覆盖 llama.cpp/LM Studio）+ read/search/edit/shell + 权限门 + JSONL 事件日志 + REPL CLI + 回放冒烟测试 | 独奏（仅主脑） |
 | **M2 剧场核心** | 模型池 + 作业路由 + 副手（异地压缩/摘要）+ actor 事件 + 机组账本 | 主脑 + 副手 |
 | **M3 全机组** | 书记（记忆检索）+ 审校（高危复核）+ 能力探针 + 回放测试进 CI | 全机组 |
 | **M4 扩展** | browser/process 工具 + 状态树分支（slot save/restore）+ MCP 外接桥 + **投机代理**（ADR-0004） | + 时间旅行、秒回 |

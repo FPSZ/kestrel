@@ -20,5 +20,8 @@ thiserror = { workspace = true }
 tokio = { workspace = true, features = ["sync", "macros", "rt"] }
 tokio-util = { workspace = true }
 
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync"] }
+
 [lints]
 workspace = true

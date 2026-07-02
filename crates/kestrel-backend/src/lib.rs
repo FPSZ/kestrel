@@ -25,3 +25,5 @@ pub mod llamacpp;
 pub mod lmstudio;
 pub mod openai_compat;
 pub mod probe;
+
+pub use openai_compat::OpenAiCompatBackend;

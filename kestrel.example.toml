@@ -1,0 +1,13 @@
+# Kestrel 配置示例。复制为 kestrel.toml 后按需修改（kestrel.toml 不入库）。
+
+approval_policy = "on-request"   # on-request | auto | strict
+workdir = "."
+sessions_dir = "sessions"
+
+[backend]
+# llama-server:  ./llama-server -m model.gguf --jinja --port 8080
+# LM Studio:     Developer -> Start Server（默认 1234 端口）
+base_url = "http://127.0.0.1:8080"
+api_key = ""            # 本地后端通常留空
+model = "local"         # LM Studio 需填已加载的模型名
+n_ctx = 16384           # 与后端启动时的上下文长度一致

@@ -503,6 +503,7 @@ dependencies = [
  "kestrel-protocol",
  "kestrel-store",
  "kestrel-tools",
+ "serde_json",
  "tokio",
  "tracing",
  "tracing-subscriber",

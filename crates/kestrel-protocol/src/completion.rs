@@ -2,20 +2,19 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::message::Message;
 use crate::tool_spec::ToolSpec;
 
 /// 一次补全请求。
 ///
-/// 前缀稳定性（原则 1）：`system` 与 `tools` 在会话生命周期内必须逐字节不变，
-/// 动态信息只允许出现在 `messages` 尾部。
+/// 前缀稳定性（原则 1）：`messages` 的头部（system + 早期历史）与 `tools`
+/// 在会话生命周期内保持逐字节稳定，新内容只追加到尾部。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CompletionRequest {
-    /// 静态 system prompt。
-    pub system: String,
     /// 静态工具规格（顺序固定）。
     pub tools: Vec<ToolSpec>,
-    /// 对话消息（OpenAI 兼容的 role/content 结构，暂以 JSON 表达，M1 收紧为强类型）。
-    pub messages: Vec<serde_json::Value>,
+    /// 对话消息（含 system 头，append-only）。
+    pub messages: Vec<Message>,
 }
 
 /// 流式补全的增量。

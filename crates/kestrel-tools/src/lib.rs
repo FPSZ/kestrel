@@ -13,12 +13,22 @@
 //!
 //! | 模块 | 工具 | 风险基线 |
 //! | --- | --- | --- |
-//! | [`shell`] | 执行 PowerShell/命令 | Mutating 起步，按命令内容升级 |
-//! | [`fs`] | read / edit（SEARCH-REPLACE 为主，宽容解析，编辑前必须 Read） | read=ReadOnly, edit=Mutating |
-//! | [`search`] | grep + glob 合一 | `ReadOnly` |
+//! | [`read`] | 读取文件 | ReadOnly |
+//! | [`search`] | 子串内容搜索 | ReadOnly |
+//! | [`fs`] | edit（SEARCH-REPLACE，宽容解析，编辑前必须 Read） | Mutating |
+//! | [`shell`] | 执行命令 | Mutating 起步，按命令内容升级 |
 //!
 //! browser（CDP）与 process（系统管理）规划于 M4。
 
 pub mod fs;
+pub mod read;
+pub mod registry;
 pub mod search;
 pub mod shell;
+mod util;
+
+pub use fs::EditTool;
+pub use read::ReadTool;
+pub use registry::builtin;
+pub use search::SearchTool;
+pub use shell::ShellTool;

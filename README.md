@@ -29,12 +29,24 @@
 
 依赖方向铁律：`前端 -> core <- 适配器`，core 不依赖任何适配器。
 
-## 构建
+## 构建与运行
 
 ```sh
-cargo build
+cargo build --release
 cargo test
+
+# 1) 起一个 OpenAI 兼容后端
+#    llama-server -m model.gguf --jinja --port 8080
+#    或 LM Studio -> Developer -> Start Server
+# 2) 配置
+cp kestrel.example.toml kestrel.toml   # 按需改 base_url / model / n_ctx
+# 3) 运行
+./target/release/kestrel
 ```
+
+M1 是回合制终端 REPL：输入消息，agent 用 read/search/edit/shell 四个工具在工作目录内
+干活，写动作走权限门确认。会话事件写入 `sessions/*.jsonl`。设 `RUST_LOG=kestrel=debug`
+看详细日志。
 
 ## License
 

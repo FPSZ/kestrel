@@ -20,6 +20,7 @@
 //! | [`ledger`] | token 预算 + KV 前缀联动 | §5.2 |
 //! | [`permission`] | deny 优先 + 风险分级 | §5.3 |
 //! | [`crew`] | 机组作业路由（确定性代码，非 LLM 决策） | §6.6 |
+//! | [`tools`] | 工具集合（ToolSet），查找表 | §8 |
 //! | [`ports`] | LlmBackend / Tool / Store 端口 trait | §3.3 |
 
 pub mod agent;
@@ -27,6 +28,11 @@ pub mod crew;
 pub mod ledger;
 pub mod permission;
 pub mod ports;
+pub mod tools;
+
+pub use agent::{Agent, AgentConfig, TurnLimits};
+pub use permission::{ApprovalPolicy, PermissionEngine};
+pub use tools::ToolSet;
 
 /// core 层错误。
 #[derive(Debug, thiserror::Error)]
