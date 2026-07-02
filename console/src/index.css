@@ -115,6 +115,16 @@
   }
 }
 
+/* markdown: neutralize the inline-code chip when it sits inside a fenced block
+   (unlayered, so it wins over the utility classes on the code element) */
+.md pre code {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  border-radius: 0;
+  font-size: inherit;
+}
+
 /* mobile: backdrop-filter is a per-frame GPU cost; drop it, use a solid fill */
 @media (max-width: 767px) {
   .glass-shell {

@@ -1,6 +1,7 @@
 import { Terminal, Check, X, AlertTriangle, Loader } from 'lucide-react'
 import { client } from '@/lib/client'
 import type { Block, ToolBlock } from '@/lib/store'
+import { Markdown } from './markdown'
 
 /**
  * Presentational conversation renderer, shared by the live chat and the
@@ -27,8 +28,8 @@ function BlockView({ block, interactive }: { block: Block; interactive: boolean 
       )
     case 'assistant':
       return (
-        <div className="max-w-full whitespace-pre-wrap text-[14px] leading-relaxed text-ink-2">
-          {block.text}
+        <div className="max-w-full">
+          <Markdown>{block.text}</Markdown>
         </div>
       )
     case 'tool':

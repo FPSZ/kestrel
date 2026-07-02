@@ -11,10 +11,19 @@ import { Conversation } from './conversation'
 export function ChatView({ blocks, turnActive }: { blocks: Block[]; turnActive: boolean }) {
   const [text, setText] = useState('')
   const endRef = useRef<HTMLDivElement>(null)
+  const taRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: 'end' })
   }, [blocks, turnActive])
+
+  // auto-grow the input up to a cap, then it scrolls internally
+  useEffect(() => {
+    const ta = taRef.current
+    if (!ta) return
+    ta.style.height = 'auto'
+    ta.style.height = `${Math.min(ta.scrollHeight, 160)}px`
+  }, [text])
 
   const send = () => {
     const t = text.trim()
@@ -52,6 +61,7 @@ export function ChatView({ blocks, turnActive }: { blocks: Block[]; turnActive: 
       <div className="shrink-0 p-3">
         <div className="mx-auto flex max-w-3xl items-end gap-2 rounded-xl border border-line bg-surface p-2 pl-3.5 transition-colors focus-within:border-line-2">
           <textarea
+            ref={taRef}
             rows={1}
             value={text}
             onChange={(e) => setText(e.target.value)}
