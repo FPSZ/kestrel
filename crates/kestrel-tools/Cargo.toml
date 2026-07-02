@@ -1,0 +1,25 @@
+[package]
+name = "kestrel-tools"
+description = "内置工具集：shell / fs / search（browser 规划于 M4）。实现 core 的 Tool 端口。"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+# 边界纪律：依赖 core（实现其端口）+ protocol + 进程/文件系统。
+# 禁止：reqwest（browser 工具经 CDP 走本地 WebSocket 时单独评审）、
+#       其他适配器 crate、前端 crate。
+kestrel-core = { workspace = true }
+kestrel-protocol = { workspace = true }
+async-trait = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["process", "fs", "io-util", "time"] }
+tokio-util = { workspace = true }
+tracing = { workspace = true }
+
+[lints]
+workspace = true

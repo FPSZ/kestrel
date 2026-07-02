@@ -1,0 +1,17 @@
+[package]
+name = "kestrel-protocol"
+description = "Kestrel 共享纯类型：Event / Op / ToolSpec / RiskLevel。零逻辑，零 IO。"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+# 边界纪律：本 crate 只允许 serde 系依赖。任何其他依赖进入此处都是架构违规。
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

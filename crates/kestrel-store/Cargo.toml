@@ -1,0 +1,26 @@
+[package]
+name = "kestrel-store"
+description = "存储层：JSONL 事件日志、模型 profile、TOML 配置。实现 core 的 Store 端口。"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+# 边界纪律：依赖 core（实现其端口）+ protocol + 文件系统/序列化。
+# 禁止：数据库依赖（JSONL + TOML 足够，引数据库须走 ADR）、
+#       其他适配器 crate、前端 crate。
+kestrel-core = { workspace = true }
+kestrel-protocol = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["fs", "io-util"] }
+toml = { workspace = true }
+tracing = { workspace = true }
+
+[lints]
+workspace = true

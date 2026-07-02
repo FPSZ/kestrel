@@ -1,0 +1,58 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/kestrel-protocol",
+    "crates/kestrel-core",
+    "crates/kestrel-backend",
+    "crates/kestrel-tools",
+    "crates/kestrel-store",
+    "crates/kestrel-cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.94"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/FPSZ/kestrel"
+authors = ["Kestrel contributors"]
+
+[workspace.dependencies]
+# 内部 crate（依赖方向铁律见 ARCHITECTURE.md §4.1）
+kestrel-protocol = { path = "crates/kestrel-protocol" }
+kestrel-core = { path = "crates/kestrel-core" }
+kestrel-backend = { path = "crates/kestrel-backend" }
+kestrel-tools = { path = "crates/kestrel-tools" }
+kestrel-store = { path = "crates/kestrel-store" }
+
+# 第三方依赖：版本统一在此声明，成员 crate 一律 { workspace = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+anyhow = "1"
+async-trait = "0.1"
+tokio = { version = "1", default-features = false }
+tokio-util = "0.7"
+futures = "0.3"
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
+toml = "0.8"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+# pedantic 中信噪比低的豁免
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+# 对中日韩文档误报严重（把中文标点当作标识符边界），不值得长期对抗
+doc_markdown = "allow"
+
+[profile.release]
+lto = "thin"
+strip = true

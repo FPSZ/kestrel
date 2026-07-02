@@ -1,0 +1,17 @@
+# Rust
+/target
+**/*.rs.bk
+
+# 本地覆盖配置与探针生成的本地 profile（内置 profile 会入库，本地实测覆盖不入库）
+profiles/*.local.toml
+kestrel.local.toml
+
+# 会话数据（运行时产物，永不入库）
+/sessions/
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+Thumbs.db
+.DS_Store

@@ -1,0 +1,29 @@
+[package]
+name = "kestrel-cli"
+description = "Kestrel 终端前端：core 事件流的渲染器。"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "kestrel"
+path = "src/main.rs"
+
+[dependencies]
+# 前端是薄壳：组装适配器、注入 core、渲染事件。
+# 这是唯一允许同时依赖 core 与全部适配器的 crate（组装根）。
+kestrel-core = { workspace = true }
+kestrel-protocol = { workspace = true }
+kestrel-backend = { workspace = true }
+kestrel-tools = { workspace = true }
+kestrel-store = { workspace = true }
+anyhow = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[lints]
+workspace = true

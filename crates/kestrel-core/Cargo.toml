@@ -1,0 +1,23 @@
+[package]
+name = "kestrel-core"
+description = "Kestrel 核心：agent loop、context ledger、权限引擎、端口 trait。零 IO。"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+# 边界纪律：只允许 protocol + 异步原语 + 错误处理。
+# 禁止：reqwest（IO 归 backend）、任何适配器 crate、任何前端 crate。
+kestrel-protocol = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["sync", "macros", "rt"] }
+tokio-util = { workspace = true }
+
+[lints]
+workspace = true

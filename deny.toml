@@ -1,0 +1,34 @@
+# cargo-deny 配置：依赖白名单 + 许可证审计
+# 职责之一：强制 ARCHITECTURE.md §4.1 的依赖方向（配合各 crate Cargo.toml 的最小依赖声明）
+
+[graph]
+all-features = true
+
+[licenses]
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Zlib",
+]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+# 禁止重量级依赖混入（轻量是产品定位，不是巧合）
+deny = [
+    { crate = "openssl", reason = "统一走 rustls，避免系统 OpenSSL 链接地狱" },
+    { crate = "actix", reason = "ADR-002：不引入 actor 框架，机组用 tokio task + channel 表达" },
+    { crate = "ractor", reason = "ADR-002：不引入 actor 框架" },
+]
+
+[advisories]
+yanked = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
