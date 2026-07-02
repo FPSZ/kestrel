@@ -28,8 +28,11 @@
 | `kestrel-tools` | 内置工具：shell / fs / search（browser 规划中） |
 | `kestrel-store` | JSONL 事件日志、模型 profile、配置 |
 | `kestrel-cli` | 终端前端（事件的渲染器） |
+| `kestrel-server` | WebUI 后端适配器（axum：SSE 推事件 + POST 收 Op） |
 
-依赖方向铁律：`前端 -> core <- 适配器`，core 不依赖任何适配器。
+`console/`（非 Rust crate）是 WebUI 前端（React + Vite + Tailwind），通过 HTTP 契约与
+`kestrel-server` 通信，不进 Rust 依赖图。依赖方向铁律：`前端 -> core <- 适配器`，
+core 不依赖任何适配器。
 
 ## 构建与运行
 
@@ -49,6 +52,27 @@ cp kestrel.example.toml kestrel.toml   # 按需改 base_url / model / n_ctx
 M1 是回合制终端 REPL：输入消息，agent 用 read/search/edit/shell 四个工具在工作目录内
 干活，写动作走权限门确认。会话事件写入 `sessions/*.jsonl`。设 `RUST_LOG=kestrel=debug`
 看详细日志。
+
+## WebUI（个人版）
+
+扁平深色的浏览器控制台，与 CLI 平级——同一个 core 的"第二个前端"（[ADR-0007](docs/adr/0007-webui-browser-axum.md)）。
+`kestrel-server` 把 core 的事件流经 SSE 推给浏览器、经 HTTP 收回 Op；只绑 `127.0.0.1`，
+单人本机、无认证。
+
+```sh
+# 开发（两个进程，前端热更新）
+cargo run -p kestrel-server            # axum on 127.0.0.1:4321
+npm --prefix console install           # 首次
+npm --prefix console run dev           # Vite on :7823，代理 /api -> :4321
+# 打开 http://localhost:7823
+
+# 发布（单二进制托管前端）
+npm --prefix console run build         # 产出 console/dist
+cargo run -p kestrel-server --release  # 直接托管 dist，打开 http://127.0.0.1:4321
+```
+
+功能：流式对话（助手文本 markdown 渲染 / 工具卡 / 内联权限审批 / 错误）、会话回放、
+只读设置、顶栏实时连接状态。设计令牌集中在 [console/src/index.css](console/src/index.css)。
 
 ## License
 
