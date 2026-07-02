@@ -16,14 +16,16 @@ rust-version = "1.94"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/FPSZ/kestrel"
 authors = ["Kestrel contributors"]
+# API 稳定前不发布 crates.io；届时移除此行并走发布流程
+publish = false
 
 [workspace.dependencies]
 # 内部 crate（依赖方向铁律见 docs/architecture.md §4.1）
-kestrel-protocol = { path = "crates/kestrel-protocol" }
-kestrel-core = { path = "crates/kestrel-core" }
-kestrel-backend = { path = "crates/kestrel-backend" }
-kestrel-tools = { path = "crates/kestrel-tools" }
-kestrel-store = { path = "crates/kestrel-store" }
+kestrel-protocol = { path = "crates/kestrel-protocol", version = "0.1.0" }
+kestrel-core = { path = "crates/kestrel-core", version = "0.1.0" }
+kestrel-backend = { path = "crates/kestrel-backend", version = "0.1.0" }
+kestrel-tools = { path = "crates/kestrel-tools", version = "0.1.0" }
+kestrel-store = { path = "crates/kestrel-store", version = "0.1.0" }
 
 # 第三方依赖：版本统一在此声明，成员 crate 一律 { workspace = true }
 serde = { version = "1", features = ["derive"] }
