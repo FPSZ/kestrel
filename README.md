@@ -13,7 +13,7 @@
 - **双模型剧场**：主脑（大模型）写码规划，副手（小模型）后台压缩/摘要，书记（嵌入模型）检索记忆，审校（中模型）复核高危动作——全部是真实并行工作的可视化，随显存自动增减，单模型也能跑。
 - **能力探针**：接入新模型自动跑 30 秒微基准，生成工具调用协议与编辑格式 profile，换模型零配置。
 
-完整设计见 [ARCHITECTURE.md](ARCHITECTURE.md)。
+完整设计见 [docs/architecture.md](docs/architecture.md)；决策记录与调研报告见 [docs/](docs/README.md)。
 
 ## Workspace 结构
 

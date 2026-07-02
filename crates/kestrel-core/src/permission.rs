@@ -1,4 +1,4 @@
-//! 权限引擎：deny 优先 + 风险分级（ARCHITECTURE.md §5.3）。
+//! 权限引擎：deny 优先 + 风险分级（docs/architecture.md §5.3）。
 //!
 //! - deny 优先求值：命中全局 deny 的工具在模型看到之前就从工具列表预过滤。
 //! - 风险等级由工具按实际参数自报（[`crate::ports::Tool::risk`]）。

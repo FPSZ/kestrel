@@ -1,6 +1,6 @@
 //! # kestrel-tools
 //!
-//! 内置工具集：[`kestrel_core::ports::Tool`] 的实现（ARCHITECTURE.md 第 8 章）。
+//! 内置工具集：[`kestrel_core::ports::Tool`] 的实现（docs/architecture.md 第 8 章）。
 //!
 //! ## 职责边界
 //!

@@ -164,19 +164,23 @@ graph TB
 ```
 kestrel/
 ├── Cargo.toml                    # workspace 根：统一 lints、profile、依赖版本
-├── ARCHITECTURE.md               # 本文档
-├── README.md / LICENSE(MIT+Apache-2.0 双许可) / CONTRIBUTING.md
-├── .github/workflows/ci.yml      # fmt + clippy(-D warnings) + test + 回放测试
+├── README.md / LICENSE-MIT / LICENSE-APACHE / CONTRIBUTING.md
+├── deny.toml / rustfmt.toml      # 依赖白名单、格式化配置
+├── .github/workflows/ci.yml      # fmt + clippy(-D warnings) + test + cargo-deny
+├── docs/
+│   ├── architecture.md           # 本文档
+│   ├── adr/                      # 架构决策记录（0001-语言、0002-风格、...）
+│   └── research/                 # 竞品与技术调研报告（结论的证据基础）
 ├── crates/
 │   ├── kestrel-protocol/         # Event/Op/ToolSpec/RiskLevel 等纯类型 + serde
 │   │                             #   依赖仅 serde；被所有 crate 依赖
 │   ├── kestrel-core/             # agent loop、context ledger、permission engine、
-│   │                             #   会话状态机；只依赖 protocol + tokio(sync)
+│   │                             #   crew 路由 + ports/；只依赖 protocol + tokio(sync)
 │   ├── kestrel-backend/          # LlmBackend 实现：llamacpp.rs / lmstudio.rs /
-│   │                             #   openai_compat.rs（兜底）+ probe/（能力探针）
-│   ├── kestrel-tools/            # 内置工具：shell.rs fs.rs search.rs browser.rs
+│   │                             #   openai_compat.rs（兜底）+ probe.rs（能力探针）
+│   ├── kestrel-tools/            # 内置工具：shell.rs fs.rs search.rs（browser M4）
 │   ├── kestrel-store/            # JSONL 事件日志、模型 profile、TOML 配置
-│   └── kestrel-cli/              # v1 前端：ratatui TUI + 极简 headless 模式
+│   └── kestrel-cli/              # v1 前端：极简 REPL 起步，M2 引入 ratatui TUI
 │       └── (v2: kestrel-server)  # axum daemon + WebUI，架构预留、暂不建目录
 ├── profiles/                     # 内置模型 profile（qwen3-8b.toml 等，探针可覆盖）
 └── tests/replays/                # 录制的回放测试 fixture（.jsonl）
@@ -364,58 +368,15 @@ enum Decision  { Allow, AskUser, Deny }
 
 ---
 
-## 附录 A：备选架构与决策记录（ADR）
+## 附录 A：架构决策记录（ADR）
 
-> 记录被认真考虑过的备选方案、否决理由与"重开条件"。将来任何人（包括我们自己）质疑选型时，先读这里。
+重大选型的备选方案、否决理由与重开条件已拆分为独立文件，见 [adr/](adr/)：
 
-### ADR-001 语言选型：Rust（对比 TypeScript+Bun / Python）
+- [ADR-0001 语言选型：Rust](adr/0001-language-rust.md)
+- [ADR-0002 架构风格：库核心 + 薄适配器 + 事件流](adr/0002-style-library-core-event-stream.md)
+- [ADR-0003 已否决方案速查](adr/0003-rejected-alternatives.md)
 
-**背景**：初始偏好 Rust 出于直觉（"高性能语言"）。但 agent 外壳的性能瓶颈永远在模型推理——性能不构成理由，必须用真实理由重新裁决。三个候选各自的最强形态：
-
-| 维度（权重来自项目价值观） | Rust | TypeScript + Bun | Python + asyncio |
-| --- | --- | --- | --- |
-| 边界强制（高——"边界明确"是硬要求） | crate 私有性由编译器强制，最强 | eslint-boundaries / project references，靠工具链自觉，中 | 约定 + mypy，最弱 |
-| 开源终态质量（高——"企业级、不是玩具"） | 单 exe 几 MB、无运行时、常驻内存最小 | `bun build --compile` 单 exe（约几十 MB），良 | 分发最差（pipx/uv），装机门槛高 |
-| 迭代速度（中——第一版是个人验证） | 慢（借用检查、编译等待） | 快 | 最快 |
-| 本地推理生态（中） | 自写 HTTP 客户端——但这恰是差异化所在（见下） | LM Studio SDK / MCP SDK 原生 TS | llama-cpp-python / HF / smolagents 最全 |
-| v2 WebUI 全栈统一（低——v2 才需要） | 前后端两套语言，用 `ts-rs` 从 protocol crate 生成 TS 类型可补 | 一门语言共享 Event/Op 类型，最优 | 前后端割裂 |
-| 社区先例与贡献者画像（中） | codex-rs / goose，本赛道最强先例；吸引在乎本地性能的贡献者 | opencode / nanocoder | aider / Open Interpreter |
-
-**裁决：Rust。** 定盘的三条理由：
-
-1. **项目的身份是"打磨的开源终态"，不是"快速原型"。** 本项目的每一条价值观（企业级、精致、边界、不是玩具）都在给终态加权。迭代速度的劣势是暂时的、付一次的；边界与分发的优势是永久的、复利的。
-2. **我们的差异化恰好长在最底层。** 全部创新（影子槽、前缀稳定、slot 管理、异地压缩）都要求对 HTTP 请求体和缓存状态的逐字节控制——TS/Python 的生态优势（现成 SDK）在这里反而是遮蔽层。生态帮不上忙的地方，生态就不是论据。
-3. **机组=进程编排+消息通道，正是 tokio 的主场。** 模型全部跑在外部进程（llama-server），三种语言在这里都只是发 HTTP，Python 的 ML 生态优势落空。
-
-**被否决方案的最强论点（诚实记录）**：TS+Bun 的"CLI/后端/WebUI 一套类型"在 v2 会真实地痛——缓解措施是 `kestrel-protocol` 用 `ts-rs` 自动导出 TS 类型定义，把类型统一保住八成。Python 的"最快验证"在 M1 也真实——接受这个代价，用 LLM 辅助开发抵消一部分。
-
-**重开条件**（满足任一即重议）：
-
-- 记忆/检索层需要进程内跑嵌入或重 ML 依赖（而非独立 llama-server 进程）→ Python 权重上升；
-- WebUI 提前成为主要交互面（朋友们真的来用了且 TUI 沦为次要）→ TS 权重上升；
-- M1 结束时 Rust 开发摩擦显著超出预期 → 全面重议。
-
-### ADR-002 架构风格：库核心 + 薄适配器 + 事件流（对比 actor 框架 / 六边形 / 深度事件溯源）
-
-**背景**：§3.2 已否决教科书六边形与事件总线。双模型剧场（第 6 章）出现后，actor 模型的吸引力上升——机组四成员天然像四个 actor，"审校复核主脑"就是一条消息。值得重新过一遍。
-
-| 风格 | 最强论点 | 否决/采纳理由 |
-| --- | --- | --- |
-| **Actor 框架**（actix / Ractor） | 机组成员=actor，消息传递即协作，语义极贴 | 否决。监督树/mailbox/背压是为成百上千并发实体设计的；我们只有 4 个长生命周期成员+一个主循环，`tokio::task` + `mpsc` 表达同样的消息传递，少一整套心智负担。**取 actor 的"消息传递"隐喻，弃 actor 框架的机器**——与"取六边形之魂弃其形"是同一个判断。 |
-| **教科书六边形** | 依赖单向、core 无 IO | 已在 §3.2 否决：取魂弃形。 |
-| **深度事件溯源**（OpenHands V1 路线：一切状态皆事件投影） | 确定性回放、崩溃恢复、审计免费获得；与回放测试（§7）天然契合 | **部分采纳，且加深**：事件日志已是一等公民；实现时把会话状态严格定义为 `fold(events)` 的投影，禁止旁路可变状态。不采纳的部分：CQRS/读写分离等重仪式——单机单会话用不上。 |
-
-**裁决**：维持"库核心 + 薄适配器 + 事件流"，实现时把事件溯源做彻底（状态=事件折叠，无旁路），机组协作用 channel 消息传递表达 actor 语义而不引框架。
-
-### ADR-003 已否决方案速查（含出处）
-
-| 方案 | 一句话否决理由 | 详见 |
-| --- | --- | --- |
-| pub/sub 事件总线 | OpenHands 亲手废除的路线 | §3.2 |
-| 纯 MCP 内置工具 | 每次调用多一层 JSON-RPC，schema 不受控 | §3.2 |
-| 依赖 rig-core | 差异化恰在它抽象掉的那层（slot/KV/GBNF） | §3.2 |
-| Go | 类型系统弱一档，本赛道无同级先例 | §3.4 |
-| 插件/技能市场 | OpenClaw 820+ 恶意技能的教训 | §2.2 |
+本文档中的调研结论（§2、§5.4 等）的完整证据见 [research/](research/)。
 
 ---
 

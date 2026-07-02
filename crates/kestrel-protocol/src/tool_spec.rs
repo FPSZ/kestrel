@@ -1,6 +1,6 @@
 //! 工具规格：注入模型上下文的工具描述。
 //!
-//! Token 纪律（ARCHITECTURE.md 原则 2）：全部工具 schema 总预算 <= 1400 token，
+//! Token 纪律（docs/architecture.md 原则 2）：全部工具 schema 总预算 <= 1400 token，
 //! 每个字段都要为它的 token 开销辩护。规格必须完全静态（前缀稳定性，原则 1）。
 
 use serde::{Deserialize, Serialize};

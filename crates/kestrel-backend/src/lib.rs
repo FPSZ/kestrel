@@ -2,7 +2,7 @@
 //!
 //! [`kestrel_core::ports::LlmBackend`] 的实现集：本 workspace 唯一
 //! 向 LLM 后端发 HTTP 的地方，也是本地专项优化的集中地
-//! （ARCHITECTURE.md §5.4）。
+//! （docs/architecture.md §5.4）。
 //!
 //! ## 职责边界
 //!

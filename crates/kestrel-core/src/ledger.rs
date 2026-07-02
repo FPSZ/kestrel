@@ -1,4 +1,4 @@
-//! Context Ledger：token 记账 + KV 前缀联动（ARCHITECTURE.md §5.2）。
+//! Context Ledger：token 记账 + KV 前缀联动（docs/architecture.md §5.2）。
 //!
 //! 叫 ledger（账本）不叫 manager：核心职责是按后端上报的真实 `n_ctx`
 //! 记账，而非拍脑袋截断。

@@ -6,7 +6,7 @@
 //! ## 职责边界
 //!
 //! - **零 IO**：不发 HTTP、不碰文件系统、不起子进程。全部外部世界经由
-//!   [`ports`] 中的 trait 注入（依赖方向铁律，ARCHITECTURE.md §4.1）。
+//!   [`ports`] 中的 trait 注入（依赖方向铁律，docs/architecture.md §4.1）。
 //! - 允许的依赖：`kestrel-protocol`、tokio 异步原语、错误处理。
 //!   禁止依赖任何适配器 crate（backend/tools/store）与前端 crate。
 //! - 对前端的唯一接口：提交 [`kestrel_protocol::Op`]，消费有序的

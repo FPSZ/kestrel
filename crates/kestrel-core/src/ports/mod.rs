@@ -1,6 +1,6 @@
 //! 端口 trait：core 与外部世界的全部接触面。
 //!
-//! 只在"确定会有第二个实现"的边界建端口（ARCHITECTURE.md §3.3）：
+//! 只在"确定会有第二个实现"的边界建端口（docs/architecture.md §3.3）：
 //!
 //! 1. [`LlmBackend`] —— llama.cpp / LM Studio / `OpenAI` 兼容兜底
 //! 2. [`Tool`] —— 每个内置工具一个实现

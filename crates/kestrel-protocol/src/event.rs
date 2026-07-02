@@ -1,6 +1,6 @@
 //! 会话事件：append-only 事件日志的原子单位。
 //!
-//! 铁律（ARCHITECTURE.md 原则 1/4）：事件只追加、永不改写；
+//! 铁律（docs/architecture.md 原则 1/4）：事件只追加、永不改写；
 //! 会话状态是事件序列的折叠投影，禁止旁路可变状态。
 
 use serde::{Deserialize, Serialize};
@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SessionId(pub String);
 
-/// 机组角色：事件的产出者标签，前端据此渲染车道（ARCHITECTURE.md §6.6）。
+/// 机组角色：事件的产出者标签，前端据此渲染车道（docs/architecture.md §6.6）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CrewRole {
@@ -70,7 +70,7 @@ pub enum EventPayload {
         /// 审校模型的第二意见（未加载审校时为 None）。
         review: Option<String>,
     },
-    /// 工具执行结果（已按摄入截断策略处理，见 ARCHITECTURE.md §5.2）。
+    /// 工具执行结果（已按摄入截断策略处理，见 docs/architecture.md §5.2）。
     ToolResult {
         /// 对应的调用标识。
         call_id: String,

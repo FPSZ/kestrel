@@ -1,5 +1,5 @@
 # cargo-deny 配置：依赖白名单 + 许可证审计
-# 职责之一：强制 ARCHITECTURE.md §4.1 的依赖方向（配合各 crate Cargo.toml 的最小依赖声明）
+# 职责之一：强制 docs/architecture.md §4.1 的依赖方向（配合各 crate Cargo.toml 的最小依赖声明）
 
 [graph]
 all-features = true
@@ -14,11 +14,15 @@ allow = [
     "ISC",
     "Unicode-3.0",
     "Zlib",
+    # webpki-roots（rustls 根证书数据）：宽松数据许可
+    "CDLA-Permissive-2.0",
 ]
 
 [bans]
 multiple-versions = "warn"
 wildcards = "deny"
+# workspace 内部 path 依赖不是真通配符
+allow-wildcard-paths = true
 # 禁止重量级依赖混入（轻量是产品定位，不是巧合）
 deny = [
     { crate = "openssl", reason = "统一走 rustls，避免系统 OpenSSL 链接地狱" },

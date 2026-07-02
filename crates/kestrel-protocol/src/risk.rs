@@ -1,4 +1,4 @@
-//! 风险分级与权限决策（ARCHITECTURE.md §5.3）。
+//! 风险分级与权限决策（docs/architecture.md §5.3）。
 
 use serde::{Deserialize, Serialize};
 
