@@ -64,13 +64,13 @@
 
 ### 3.2 被否决的方案及理由
 
-| 方案                                           | 否决理由                                                                                                                                                                                                                                                                     |
-| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **教科书式六边形架构**                   | 六边形为"领域模型复杂、外部系统多变"的企业应用设计。我们恰好相反：外部边界少而稳定，复杂度在**运行时行为**（loop 状态机、token 预算、KV 联动）而非领域模型。全套 DTO 转换/依赖注入容器只会稀释代码密度。**取其魂（依赖单向、core 无 IO），弃其形（每层仪式）。** |
-| **事件总线（pub/sub）**                  | OpenHands 亲手废除的路线，消息顺序无保证、调试地狱。我们用**单消费者的有序事件通道**（`tokio::sync::mpsc`）：core 产出事件，前端消费，永远单向、有序。                                                                                                               |
-| **Actor 框架**（AutoAgents/Ractor 路线） | Actor 解决的是大规模并发实体的问题。我们只有一个 agent 循环 + 少量后台任务，`tokio::select!` + channel 足够，引入 actor 框架是拿大炮打蚊子，还引入一整套监督树的学习成本。                                                                                                 |
-| **纯 MCP 扩展**（goose 路线）            | 内置工具也走 MCP 意味着每个工具调用多一层 JSON-RPC 序列化，且工具 schema 不受我们控制（MCP 工具 schema 常常比用户提示还费 token）。**内置工具用原生 trait（零开销、schema 逐 token 手工优化），MCP 作为 v2 的外接桥**——这也是 rig/swiftide/codex 的共识做法。        |
-| **依赖 rig-core 做地基**                 | rig 的抽象质量不错，但我们的差异化恰好在它抽象掉的那一层：llama.cpp 的 slot 管理、`cache_prompt`、`/props` 探测、GBNF 注入都需要直接控制 HTTP 请求体。为省 2 千行代码引入一个把关键层遮住的依赖，不值。**自研 backend 层，trait 设计参考 rig/goose。**             |
+| 方案 | 否决理由 |
+| --- | --- |
+| **教科书式六边形架构** | 六边形为"领域模型复杂、外部系统多变"的企业应用设计。我们恰好相反：外部边界少而稳定，复杂度在**运行时行为**（loop 状态机、token 预算、KV 联动）而非领域模型。全套 DTO 转换/依赖注入容器只会稀释代码密度。**取其魂（依赖单向、core 无 IO），弃其形（每层仪式）。** |
+| **事件总线（pub/sub）** | OpenHands 亲手废除的路线，消息顺序无保证、调试地狱。我们用**单消费者的有序事件通道**（`tokio::sync::mpsc`）：core 产出事件，前端消费，永远单向、有序。 |
+| **Actor 框架**（AutoAgents/Ractor 路线） | Actor 解决的是大规模并发实体的问题。我们只有一个 agent 循环 + 少量后台任务，`tokio::select!` + channel 足够，引入 actor 框架是拿大炮打蚊子，还引入一整套监督树的学习成本。 |
+| **纯 MCP 扩展**（goose 路线） | 内置工具也走 MCP 意味着每个工具调用多一层 JSON-RPC 序列化，且工具 schema 不受我们控制（MCP 工具 schema 常常比用户提示还费 token）。**内置工具用原生 trait（零开销、schema 逐 token 手工优化），MCP 作为 v2 的外接桥**——这也是 rig/swiftide/codex 的共识做法。 |
+| **依赖 rig-core 做地基** | rig 的抽象质量不错，但我们的差异化恰好在它抽象掉的那一层：llama.cpp 的 slot 管理、`cache_prompt`、`/props` 探测、GBNF 注入都需要直接控制 HTTP 请求体。为省 2 千行代码引入一个把关键层遮住的依赖，不值。**自研 backend 层，trait 设计参考 rig/goose。** |
 
 ### 3.3 四个端口（且仅此四个）
 
@@ -161,7 +161,7 @@ graph TB
 
 ### 4.2 Workspace 结构
 
-```
+```text
 kestrel/
 ├── Cargo.toml                    # workspace 根：统一 lints、profile、依赖版本
 ├── README.md / LICENSE-MIT / LICENSE-APACHE / CONTRIBUTING.md
@@ -273,7 +273,7 @@ enum Decision  { Allow, AskUser, Deny }
 
 ### 6.3 交互设计
 
-```
+```text
 ┌ Kestrel · 会话: 重构 auth 模块 ································· 机组 4/4 [####]
 │
 │  你     重构登录逻辑，拆掉那个 800 行的 God 函数
@@ -354,7 +354,9 @@ enum Decision  { Allow, AskUser, Deny }
 | **M1 骨架** | workspace + protocol + core loop + llama.cpp backend + shell/read/edit/search + CLI + 事件日志 | 独奏（仅主脑） |
 | **M2 剧场核心** | 模型池 + 作业路由 + 副手（异地压缩/摘要）+ actor 事件 + 机组账本 | 主脑 + 副手 |
 | **M3 全机组** | 书记（记忆检索）+ 审校（高危复核）+ 能力探针 + 回放测试进 CI | 全机组 |
-| **M4 扩展** | browser/process 工具 + 状态树分支（slot save/restore）+ MCP 外接桥 | + 时间旅行 |
+| **M4 扩展** | browser/process 工具 + 状态树分支（slot save/restore）+ MCP 外接桥 + **投机代理**（ADR-0004） | + 时间旅行、秒回 |
+| **M5 夜班** | 闲时自主家务：记忆蒸馏、索引、探针复跑、草稿起草 + 夜班报告（默认只读，ADR-0004） | + 夜班 |
+| **M6 睡眠周期** | 本地 LoRA 自我进化：偏好数据管道 -> 深睡训练 -> 探针考试上岗（北极星，见 docs/vision.md，落地前另立 ADR） | 会做梦的机组 |
 | **v2 预留** | `kestrel-server`（axum + WebUI）+ 多会话隔离 + 认证——给朋友用 | 不改 core 一行 |
 
 ---

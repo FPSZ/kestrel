@@ -10,6 +10,7 @@
 | [0001](0001-language-rust.md) | 语言选型：Rust（对比 TypeScript+Bun / Python） | Accepted |
 | [0002](0002-style-library-core-event-stream.md) | 架构风格：库核心 + 薄适配器 + 事件流 | Accepted |
 | [0003](0003-rejected-alternatives.md) | 已否决方案速查（事件总线 / 纯 MCP / rig-core / Go / 插件市场） | Accepted |
+| [0004](0004-inverted-cost-model.md) | 成本模型反转：为"token 免费、延迟贵"设计（投机代理 / 夜班） | Accepted |
 
 ## 约定
 
