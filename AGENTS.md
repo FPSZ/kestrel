@@ -79,7 +79,9 @@ kestrel/
 │   ├── kestrel-backend/      LlmBackend 实现（唯一碰 LLM HTTP 的 crate）
 │   ├── kestrel-tools/        内置工具（实现 core 的 Tool 端口）
 │   ├── kestrel-store/        事件日志 / 配置 / profile（Store 端口）
-│   └── kestrel-cli/          终端前端（组装根 + 事件渲染器）
+│   ├── kestrel-cli/          终端前端（组装根 + 事件渲染器）
+│   └── kestrel-server/       WebUI 后端适配器（axum：SSE 推事件 + POST 收 Op）
+├── console/                  WebUI 前端（React+Vite+Tailwind），纯前端，不进 Rust 依赖图
 ├── profiles/                 内置模型 profile（探针可覆盖为 *.local.toml）
 └── tests/replays/            回放测试 fixture（.jsonl）
 ```

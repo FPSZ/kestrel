@@ -13,6 +13,7 @@
 | [0004](0004-inverted-cost-model.md) | 成本模型反转：为"token 免费、延迟贵"设计（投机代理 / 夜班） | Accepted |
 | [0005](0005-capability-disclosure.md) | 能力披露分层：渐进式披露，但只许向尾部追加（不破 KV 前缀） | Accepted |
 | [0006](0006-loadout-declarative-build.md) | Loadout：声明式能力编组与分发（配置即产物，不碰权重） | Accepted |
+| [0007](0007-webui-browser-axum.md) | WebUI 个人版：浏览器 + axum，前端只是"第二个前端" | Accepted |
 
 ## 约定
 

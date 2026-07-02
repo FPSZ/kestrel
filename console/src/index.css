@@ -1,0 +1,137 @@
+@import 'tailwindcss';
+
+/* ===================================================================
+   Kestrel console - flat dark design tokens (Linear / Raycast lineage)
+   ONE structural idea is borrowed from prior work: the topbar and sidebar
+   are fused into a single continuous frosted surface, with the content
+   pane inset as a bezeled card. Everything else is original.
+   Flat: no glossy highlights, no bevels - depth comes from hairline
+   borders, not shadows. Restyle by editing these tokens only.
+   =================================================================== */
+@theme {
+  /* surfaces (dark, near-flat) */
+  --color-desktop: #08090b;              /* shows behind the frosted shell */
+  --color-surface: rgba(255, 255, 255, 0.04);
+  --color-surface-2: rgba(255, 255, 255, 0.065);
+  --color-bezel: #0e0f13;                /* content pane, near-solid for reading */
+
+  /* text, four levels */
+  --color-ink: #ededf0;
+  --color-ink-2: #b7b8c0;
+  --color-ink-3: #8a8b94;
+  --color-ink-mute: #5f606a;
+
+  /* hairlines (translucent white; depth without shadow) */
+  --color-line: rgba(255, 255, 255, 0.07);
+  --color-line-2: rgba(255, 255, 255, 0.11);
+  --color-line-3: rgba(255, 255, 255, 0.16);
+
+  /* single accent (iris) - the only hue in the whole UI */
+  --color-accent: #6e78d8;
+  --color-accent-2: #8b93e6;
+  --color-accent-ink: #c3c8f4;
+
+  /* status */
+  --color-ok: #3ecf8e;
+  --color-warn: #e0a030;
+  --color-crit: #e0574b;
+
+  /* radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+
+  /* frosted shell */
+  --glass-fill: rgba(20, 21, 26, 0.55);
+  --glass-brd: rgba(255, 255, 255, 0.08);
+
+  /* type */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', 'Segoe UI Mono',
+    Consolas, 'Liberation Mono', monospace;
+
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-line);
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    margin: 0;
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* flat dark desktop: near-black with a whisper of cool glow, nothing busy */
+    background:
+      radial-gradient(58vw 46vh at 80% -12%, rgba(110, 120, 224, 0.1), transparent 60%),
+      radial-gradient(46vw 40vh at -6% 108%, rgba(70, 92, 168, 0.07), transparent 56%),
+      var(--color-desktop);
+    background-attachment: fixed;
+  }
+  ::selection {
+    background: color-mix(in oklch, var(--color-accent) 32%, transparent);
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-line-3) transparent;
+  }
+}
+
+@layer utilities {
+  /* the frosted shell: topbar + sidebar live on this ONE surface.
+     flat - a single hairline border, no ::after highlight, no inner bevels. */
+  .glass-shell {
+    background: var(--glass-fill);
+    backdrop-filter: blur(24px) saturate(120%);
+    -webkit-backdrop-filter: blur(24px) saturate(120%);
+    border: 1px solid var(--glass-brd);
+  }
+  /* content pane: near-solid, inset, hairline border - the "bezel" */
+  .content-bezel {
+    background: var(--color-bezel);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-lg);
+  }
+  .font-mono {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+  .focus-ring:focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 2px var(--color-desktop),
+      0 0 0 4px color-mix(in oklch, var(--color-accent) 55%, transparent);
+    border-radius: var(--radius-sm);
+  }
+}
+
+/* mobile: backdrop-filter is a per-frame GPU cost; drop it, use a solid fill */
+@media (max-width: 767px) {
+  .glass-shell {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: rgba(16, 17, 21, 0.96);
+  }
+  body {
+    background-attachment: scroll;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

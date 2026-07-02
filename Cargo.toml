@@ -7,6 +7,7 @@ members = [
     "crates/kestrel-tools",
     "crates/kestrel-store",
     "crates/kestrel-cli",
+    "crates/kestrel-server",
 ]
 
 [workspace.package]
@@ -40,6 +41,10 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "str
 toml = "0.8"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+# WebUI 后端（kestrel-server）：axum 传输 + SSE 扇出
+axum = "0.8"
+tower-http = { version = "0.6", features = ["fs"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
