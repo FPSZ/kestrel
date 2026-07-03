@@ -11,8 +11,8 @@ use async_trait::async_trait;
 use kestrel_core::ports::{CompletionStream, LlmBackend, Store, Tool, ToolCtx, ToolOutput};
 use kestrel_core::{Agent, AgentConfig, ApprovalPolicy, PermissionEngine, ToolSet, TurnLimits};
 use kestrel_protocol::{
-    BackendCapabilities, CompletionChunk, CompletionRequest, Event, EventPayload, Op, RiskLevel,
-    SessionId, ToolSpec,
+    AgentMode, BackendCapabilities, CompletionChunk, CompletionRequest, Event, EventPayload, Op,
+    RiskLevel, SessionId, ToolSpec,
 };
 use tokio::sync::mpsc;
 
@@ -148,6 +148,8 @@ async fn plain_text_reply_completes_turn() {
     op_tx
         .send(Op::UserInput {
             text: "hi".to_owned(),
+            think: true,
+            mode: AgentMode::Auto,
         })
         .await
         .unwrap();
@@ -209,6 +211,8 @@ async fn tool_call_then_result_then_completes() {
     op_tx
         .send(Op::UserInput {
             text: "go".to_owned(),
+            think: true,
+            mode: AgentMode::Auto,
         })
         .await
         .unwrap();
@@ -240,8 +244,10 @@ fn payloads_owned(payloads: &[EventPayload]) -> Vec<&'static str> {
         .map(|p| match p {
             EventPayload::UserInput { .. } => "UserInput",
             EventPayload::AgentText { .. } => "AgentText",
+            EventPayload::AgentReasoning { .. } => "AgentReasoning",
             EventPayload::ToolCallRequested { .. } => "ToolCallRequested",
             EventPayload::ApprovalRequired { .. } => "ApprovalRequired",
+            EventPayload::ApprovalResolved { .. } => "ApprovalResolved",
             EventPayload::ToolResult { .. } => "ToolResult",
             EventPayload::TurnCompleted { .. } => "TurnCompleted",
             EventPayload::ContextBudget { .. } => "ContextBudget",

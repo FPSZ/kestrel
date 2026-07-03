@@ -24,6 +24,6 @@ pub mod tool_spec;
 pub use completion::{BackendCapabilities, CompletionChunk, CompletionRequest};
 pub use event::{CrewRole, Event, EventPayload, SessionId};
 pub use message::{Message, Role, ToolCall};
-pub use op::Op;
+pub use op::{AgentMode, Op};
 pub use risk::{Decision, RiskLevel};
 pub use tool_spec::ToolSpec;

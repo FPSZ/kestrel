@@ -4,7 +4,7 @@
 //! - 风险等级由工具按实际参数自报（[`crate::ports::Tool::risk`]）。
 //! - 确认策略分档对齐 codex 的 `AskForApproval` 精神。
 
-use kestrel_protocol::{Decision, RiskLevel};
+use kestrel_protocol::{AgentMode, Decision, RiskLevel};
 
 /// 确认策略档位。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -63,6 +63,36 @@ impl PermissionEngine {
         self.decide(risk)
     }
 
+    /// 按**本轮运行模式**（询问/全部执行/计划）裁决具名工具调用：deny 优先，
+    /// 其后按模式 × 风险分档。模式来自前端 [`kestrel_protocol::Op::UserInput`]，
+    /// 覆盖启动策略——UI 的"询问/全部执行/计划"三态就走这里。
+    ///
+    /// 铁律：无论何种模式，Destructive/External 都不会被自动放行（Auto 也必问，
+    /// Plan 直接挡回）——权限门不可削弱。
+    #[must_use]
+    pub fn decide_tool_in_mode(&self, tool: &str, risk: RiskLevel, mode: AgentMode) -> Decision {
+        if self.is_denied(tool) {
+            return Decision::Deny;
+        }
+        match mode {
+            // 计划：只读放行，其余一律挡回（模型据纠错提示只出计划、不落地）。
+            AgentMode::Plan => match risk {
+                RiskLevel::ReadOnly => Decision::Allow,
+                _ => Decision::Deny,
+            },
+            // 全部执行：只读 + 工作区可变自动放行；破坏性/外联仍必问（铁律）。
+            AgentMode::Auto => match risk {
+                RiskLevel::ReadOnly | RiskLevel::Mutating => Decision::Allow,
+                _ => Decision::AskUser,
+            },
+            // 询问：只读放行，其余逐个问（等价 on-request）。
+            AgentMode::Ask => match risk {
+                RiskLevel::ReadOnly => Decision::Allow,
+                _ => Decision::AskUser,
+            },
+        }
+    }
+
     /// 按风险与策略分档决策（不查 deny 名单，见 [`decide_tool`]）。
     ///
     /// [`decide_tool`]: PermissionEngine::decide_tool
@@ -115,5 +145,65 @@ mod tests {
             engine.decide_tool("read", RiskLevel::ReadOnly),
             Decision::Allow
         );
+    }
+
+    #[test]
+    fn ask_mode_asks_for_writes_allows_reads() {
+        let engine = PermissionEngine::default();
+        assert_eq!(
+            engine.decide_tool_in_mode("read", RiskLevel::ReadOnly, AgentMode::Ask),
+            Decision::Allow
+        );
+        assert_eq!(
+            engine.decide_tool_in_mode("shell", RiskLevel::Mutating, AgentMode::Ask),
+            Decision::AskUser
+        );
+    }
+
+    #[test]
+    fn auto_mode_allows_mutating_but_still_asks_destructive_external() {
+        let engine = PermissionEngine::default();
+        assert_eq!(
+            engine.decide_tool_in_mode("edit", RiskLevel::Mutating, AgentMode::Auto),
+            Decision::Allow
+        );
+        // 铁律：Auto 也不放行破坏性/外联。
+        assert_eq!(
+            engine.decide_tool_in_mode("shell", RiskLevel::Destructive, AgentMode::Auto),
+            Decision::AskUser
+        );
+        assert_eq!(
+            engine.decide_tool_in_mode("shell", RiskLevel::External, AgentMode::Auto),
+            Decision::AskUser
+        );
+    }
+
+    #[test]
+    fn plan_mode_allows_only_readonly_denies_the_rest() {
+        let engine = PermissionEngine::default();
+        assert_eq!(
+            engine.decide_tool_in_mode("search", RiskLevel::ReadOnly, AgentMode::Plan),
+            Decision::Allow
+        );
+        assert_eq!(
+            engine.decide_tool_in_mode("edit", RiskLevel::Mutating, AgentMode::Plan),
+            Decision::Deny
+        );
+        assert_eq!(
+            engine.decide_tool_in_mode("shell", RiskLevel::External, AgentMode::Plan),
+            Decision::Deny
+        );
+    }
+
+    #[test]
+    fn deny_list_wins_in_every_mode() {
+        let engine =
+            PermissionEngine::with_deny(ApprovalPolicy::default(), vec!["shell".to_owned()]);
+        for mode in [AgentMode::Ask, AgentMode::Auto, AgentMode::Plan] {
+            assert_eq!(
+                engine.decide_tool_in_mode("shell", RiskLevel::Mutating, mode),
+                Decision::Deny
+            );
+        }
     }
 }

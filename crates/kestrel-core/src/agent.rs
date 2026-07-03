@@ -14,8 +14,8 @@ use std::sync::Arc;
 
 use futures::StreamExt;
 use kestrel_protocol::{
-    CompletionChunk, CompletionRequest, CrewRole, Decision, Event, EventPayload, Message, Op, Role,
-    SessionId, ToolCall,
+    AgentMode, CompletionChunk, CompletionRequest, CrewRole, Decision, Event, EventPayload,
+    Message, Op, RiskLevel, Role, SessionId, ToolCall,
 };
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
@@ -23,7 +23,7 @@ use tokio_util::sync::CancellationToken;
 use crate::CoreError;
 use crate::ledger::ContextLedger;
 use crate::permission::PermissionEngine;
-use crate::ports::{LlmBackend, Store, ToolCtx};
+use crate::ports::{LlmBackend, Store, Tool, ToolCtx, ToolOutput};
 use crate::tools::ToolSet;
 
 /// read 工具名：read-before-edit 约束用（主循环层约束，见 docs/architecture.md §8）。
@@ -67,13 +67,16 @@ pub struct Agent {
     config: AgentConfig,
 }
 
-/// 一轮对话的事件出口与状态：把 session/store/event_tx/seq 打包，
-/// 避免每个方法重复传四个参数。
+/// 一轮对话的事件出口与会话级状态：把 session/store/event_tx/seq 打包，
+/// 避免每个方法重复传参。虽名为 Turn，实为整个会话生命周期存活（在 `run` 里
+/// 创建一次、跨轮复用），故 `seq` 与 `read_paths` 都随会话累积。
 struct Turn<'a> {
     session: &'a SessionId,
     store: &'a dyn Store,
     event_tx: &'a mpsc::Sender<Event>,
     seq: u64,
+    /// 已被模型读过的文件（read-before-edit 约束，会话级累积）。
+    read_paths: HashSet<String>,
 }
 
 impl Turn<'_> {
@@ -121,20 +124,19 @@ impl Agent {
         event_tx: mpsc::Sender<Event>,
     ) -> Result<(), CoreError> {
         let mut history = vec![Message::text(Role::System, &self.config.system_prompt)];
-        // 已被模型读过的文件（read-before-edit 约束）。会话级：轮 1 读、轮 2 编辑也算。
-        // 纯字符串集合，不碰文件系统——保持 core 零 IO 与确定性。
-        let mut read_paths: HashSet<String> = HashSet::new();
         let mut ledger = ContextLedger::new(self.config.n_ctx);
         let mut turn = Turn {
             session: &session,
             store: self.store.as_ref(),
             event_tx: &event_tx,
             seq: 0,
+            // 纯字符串集合，不碰文件系统——保持 core 零 IO 与确定性。
+            read_paths: HashSet::new(),
         };
 
         while let Some(op) = op_rx.recv().await {
             match op {
-                Op::UserInput { text, think } => {
+                Op::UserInput { text, think, mode } => {
                     turn.emit(
                         CrewRole::Lead,
                         EventPayload::UserInput { text: text.clone() },
@@ -146,14 +148,7 @@ impl Agent {
                     // 一轮内的错误（后端连不上、工具基础设施故障）不杀会话：
                     // 报成 Error 事件，回到提示符，用户可修复后重试。
                     match self
-                        .run_turn(
-                            &mut turn,
-                            &mut history,
-                            &mut read_paths,
-                            &mut op_rx,
-                            &cancel,
-                            think,
-                        )
+                        .run_turn(&mut turn, &mut history, &mut op_rx, &cancel, think, mode)
                         .await
                     {
                         Ok(()) => {}
@@ -201,16 +196,18 @@ impl Agent {
         &self,
         turn: &mut Turn<'_>,
         history: &mut Vec<Message>,
-        read_paths: &mut HashSet<String>,
         op_rx: &mut mpsc::Receiver<Op>,
         cancel: &CancellationToken,
         think: bool,
+        mode: AgentMode,
     ) -> Result<(), CoreError> {
         for _ in 0..self.config.limits.max_iterations {
             if cancel.is_cancelled() {
                 return Err(CoreError::Cancelled);
             }
-            let (text, calls) = self.stream_once(turn, history, op_rx, cancel, think).await?;
+            let (text, calls) = self
+                .stream_once(turn, history, op_rx, cancel, think)
+                .await?;
             history.push(Message::assistant_calls(text, calls.clone()));
 
             if calls.is_empty() {
@@ -225,7 +222,7 @@ impl Agent {
             }
 
             for call in calls {
-                self.execute_call(turn, history, read_paths, op_rx, cancel, &call)
+                self.execute_call(turn, history, op_rx, cancel, &call, mode)
                     .await?;
             }
         }
@@ -322,10 +319,10 @@ impl Agent {
         &self,
         turn: &mut Turn<'_>,
         history: &mut Vec<Message>,
-        read_paths: &mut HashSet<String>,
         op_rx: &mut mpsc::Receiver<Op>,
         cancel: &CancellationToken,
         call: &ToolCall,
+        mode: AgentMode,
     ) -> Result<(), CoreError> {
         if cancel.is_cancelled() {
             return Err(CoreError::Cancelled);
@@ -349,7 +346,7 @@ impl Agent {
         // 文件直接挡回，喂给模型可操作的纠错提示，而不是让它盲改。
         if call.name == EDIT_TOOL
             && let Some(path) = call.arguments.get("path").and_then(|p| p.as_str())
-            && !read_paths.contains(&normalize_path(path))
+            && !turn.read_paths.contains(&normalize_path(path))
         {
             let msg = format!(
                 "must read '{path}' before editing it. Call read(path=\"{path}\") first, \
@@ -359,10 +356,10 @@ impl Agent {
         }
 
         let risk = tool.risk(&call.arguments);
-        match self.permission.decide_tool(&call.name, risk) {
+        match self.permission.decide_tool_in_mode(&call.name, risk, mode) {
             Decision::Deny => {
-                return finish_call(turn, history, call, false, "denied by policy".to_owned())
-                    .await;
+                let msg = deny_message(mode, &call.name, risk);
+                return finish_call(turn, history, call, false, msg).await;
             }
             Decision::AskUser => {
                 turn.emit(
@@ -411,33 +408,54 @@ impl Agent {
             max_output_bytes: self.config.max_tool_output,
             cancel: cancel.child_token(),
         };
-        let out = {
-            let call_fut = tool.call(call.arguments.clone(), &ctx);
-            tokio::pin!(call_fut);
-            loop {
-                tokio::select! {
-                    op = op_rx.recv() => {
-                        match op {
-                            // 触发令牌后不 drop future，而是继续 await 让工具观察到取消、
-                            // 优雅收尾（如 shell 杀子进程）。
-                            Some(Op::Cancel) | None => cancel.cancel(),
-                            Some(_) => {}
-                        }
-                    }
-                    res = &mut call_fut => break res?,
-                }
-            }
-        };
+        let out =
+            run_tool_watching_cancel(&tool, call.arguments.clone(), &ctx, op_rx, cancel).await?;
 
         // read 成功后记账，供后续 edit 的 read-before-edit 校验。
         if call.name == READ_TOOL
             && out.ok
             && let Some(path) = call.arguments.get("path").and_then(|p| p.as_str())
         {
-            read_paths.insert(normalize_path(path));
+            turn.read_paths.insert(normalize_path(path));
         }
 
         finish_call(turn, history, call, out.ok, out.content).await
+    }
+}
+
+/// 权限门挡回时喂回模型的文案：计划模式给可操作的"只出计划"提示（不改 system
+/// prompt，前缀稳定），其余情况用通用拒绝串。
+fn deny_message(mode: AgentMode, tool: &str, risk: RiskLevel) -> String {
+    if matches!(mode, AgentMode::Plan) && risk != RiskLevel::ReadOnly {
+        format!(
+            "plan mode: '{tool}' is a {risk:?} action and was NOT executed. \
+             Describe what you would do (the plan); the user will switch to \
+             execute mode to actually run it."
+        )
+    } else {
+        "denied by policy".to_owned()
+    }
+}
+
+/// 执行工具，同时并发监听 [`Op::Cancel`]：触发即取消令牌（不 drop future，
+/// 让工具观察到取消、优雅收尾，如 shell 杀子进程）。前端断开（`None`）同理。
+async fn run_tool_watching_cancel(
+    tool: &Arc<dyn Tool>,
+    args: serde_json::Value,
+    ctx: &ToolCtx,
+    op_rx: &mut mpsc::Receiver<Op>,
+    cancel: &CancellationToken,
+) -> Result<ToolOutput, CoreError> {
+    let call_fut = tool.call(args, ctx);
+    tokio::pin!(call_fut);
+    loop {
+        tokio::select! {
+            op = op_rx.recv() => match op {
+                Some(Op::Cancel) | None => cancel.cancel(),
+                Some(_) => {}
+            },
+            res = &mut call_fut => break res,
+        }
     }
 }
 

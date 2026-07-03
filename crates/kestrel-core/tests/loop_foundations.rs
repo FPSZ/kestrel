@@ -10,8 +10,8 @@ use async_trait::async_trait;
 use kestrel_core::ports::{CompletionStream, LlmBackend, Store, Tool, ToolCtx, ToolOutput};
 use kestrel_core::{Agent, AgentConfig, ApprovalPolicy, PermissionEngine, ToolSet, TurnLimits};
 use kestrel_protocol::{
-    BackendCapabilities, CompletionChunk, CompletionRequest, Event, EventPayload, Op, RiskLevel,
-    SessionId, ToolSpec,
+    AgentMode, BackendCapabilities, CompletionChunk, CompletionRequest, Event, EventPayload, Op,
+    RiskLevel, SessionId, ToolSpec,
 };
 use tokio::sync::mpsc;
 
@@ -199,6 +199,8 @@ async fn edit_without_prior_read_is_blocked() {
     op_tx
         .send(Op::UserInput {
             text: "edit it".to_owned(),
+            think: true,
+            mode: AgentMode::Auto,
         })
         .await
         .unwrap();
@@ -246,6 +248,8 @@ async fn edit_after_read_is_allowed() {
     op_tx
         .send(Op::UserInput {
             text: "go".to_owned(),
+            think: true,
+            mode: AgentMode::Auto,
         })
         .await
         .unwrap();
@@ -289,6 +293,8 @@ async fn cancel_mid_tool_completes_with_cancelled() {
     op_tx
         .send(Op::UserInput {
             text: "run".to_owned(),
+            think: true,
+            mode: AgentMode::Auto,
         })
         .await
         .unwrap();
@@ -340,6 +346,8 @@ async fn turn_emits_context_budget() {
     op_tx
         .send(Op::UserInput {
             text: "hello".to_owned(),
+            think: true,
+            mode: AgentMode::Auto,
         })
         .await
         .unwrap();
