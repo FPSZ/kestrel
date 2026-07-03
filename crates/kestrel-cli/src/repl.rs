@@ -151,7 +151,7 @@ async fn drain_turn(
                 println!();
                 return Ok(true);
             }
-            EventPayload::Error { message } => {
+            EventPayload::Error { message, .. } => {
                 eprintln!("\n[错误] {message}");
                 return Ok(true);
             }

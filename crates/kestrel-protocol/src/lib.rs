@@ -15,6 +15,7 @@
 //! - 所有序列化格式变更都是破坏性变更，须走 CHANGELOG。
 
 pub mod completion;
+pub mod error;
 pub mod event;
 pub mod message;
 pub mod op;
@@ -23,6 +24,7 @@ pub mod secret;
 pub mod tool_spec;
 
 pub use completion::{BackendCapabilities, CompletionChunk, CompletionRequest};
+pub use error::ErrorCode;
 pub use event::{CrewRole, EVENT_LOG_SCHEMA_VERSION, Event, EventPayload, SessionId};
 pub use message::{Message, Role, ToolCall};
 pub use op::{AgentMode, Op};

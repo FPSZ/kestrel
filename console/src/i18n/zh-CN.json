@@ -49,6 +49,12 @@
   "risk.destructive": "破坏性",
   "risk.external": "外联",
 
+  "error.backend": "模型后端错误",
+  "error.tool": "工具执行失败",
+  "error.store": "存储错误",
+  "error.cancelled": "已取消",
+  "error.internal": "出错了",
+
   "nav.chat": "对话",
   "nav.models": "模型",
   "nav.settings": "设置",

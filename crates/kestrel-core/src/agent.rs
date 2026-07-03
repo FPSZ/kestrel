@@ -175,6 +175,7 @@ impl Agent {
                             turn.emit(
                                 CrewRole::System,
                                 EventPayload::Error {
+                                    code: e.code(),
                                     message: e.to_string(),
                                 },
                             )

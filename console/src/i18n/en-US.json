@@ -49,6 +49,12 @@
   "risk.destructive": "destructive",
   "risk.external": "external",
 
+  "error.backend": "Model backend error",
+  "error.tool": "Tool execution failed",
+  "error.store": "Storage error",
+  "error.cancelled": "Cancelled",
+  "error.internal": "Something went wrong",
+
   "nav.chat": "Chat",
   "nav.models": "Models",
   "nav.settings": "Settings",

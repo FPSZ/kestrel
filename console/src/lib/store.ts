@@ -5,7 +5,7 @@
 
 import { useEffect, useState } from 'react'
 import { client, type StreamStatus } from './client'
-import type { KestrelEvent, RiskLevel } from './types'
+import type { ErrorCode, KestrelEvent, RiskLevel } from './types'
 
 export type ToolStatus = 'running' | 'ok' | 'error' | 'pending_approval'
 
@@ -25,7 +25,7 @@ export type Block =
   | { kind: 'user'; seq: number; ts?: number; text: string; images?: string[] }
   | { kind: 'assistant'; seq: number; ts?: number; text: string; reasoning?: string }
   | ToolBlock
-  | { kind: 'error'; seq: number; ts?: number; message: string }
+  | { kind: 'error'; seq: number; ts?: number; message: string; code?: ErrorCode }
 
 export interface ConversationState {
   blocks: Block[]
@@ -113,7 +113,7 @@ export function fold(state: ConversationState, event: KestrelEvent): Conversatio
       turnActive = false
       break
     case 'error':
-      blocks.push({ kind: 'error', seq: event.seq, ts: event.ts, message: p.message })
+      blocks.push({ kind: 'error', seq: event.seq, ts: event.ts, message: p.message, code: p.code })
       turnActive = false
       break
   }

@@ -129,7 +129,12 @@ pub enum EventPayload {
     },
     /// 不可恢复错误（可恢复错误走 `ToolResult` 的 `ok: false` 喂回模型自纠错）。
     Error {
-        /// 错误描述。
+        /// 稳定错误分类（语言中立，前端据此本地化，见 [`crate::ErrorCode`]）。
+        /// 旧日志无此字段时默认 `Internal`（前向兼容，ADR-0011）。
+        #[serde(default)]
+        code: crate::ErrorCode,
+        /// 开发向原始细节（英文、不本地化，来自 OS / 网络 / serde）。字段名保留不改
+        /// （前向兼容铁律：只增不改），前端作次要上下文展示。
         message: String,
     },
     /// 未知事件类型（前向兼容，ADR-0011）：由更新版本写入、本版本还不认识的 `type`。

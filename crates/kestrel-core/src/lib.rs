@@ -51,3 +51,18 @@ pub enum CoreError {
     #[error("cancelled")]
     Cancelled,
 }
+
+impl CoreError {
+    /// 映射到稳定的、语言中立的错误分类（地基 #3）。进事件日志时与开发向的
+    /// `to_string()` 细节一起发出，前端据 code 本地化、把细节作次要上下文。
+    #[must_use]
+    pub fn code(&self) -> kestrel_protocol::ErrorCode {
+        use kestrel_protocol::ErrorCode;
+        match self {
+            CoreError::Backend(_) => ErrorCode::Backend,
+            CoreError::Tool(_) => ErrorCode::Tool,
+            CoreError::Store(_) => ErrorCode::Store,
+            CoreError::Cancelled => ErrorCode::Cancelled,
+        }
+    }
+}

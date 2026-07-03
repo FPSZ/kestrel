@@ -71,7 +71,15 @@ function BlockView({
       return (
         <div className="flex items-start gap-2 rounded-lg border border-crit/30 bg-crit/10 px-3 py-2 text-[13px] text-crit">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.9} />
-          <span className="whitespace-pre-wrap">{block.message}</span>
+          <div className="min-w-0">
+            {/* localized category (from stable ErrorCode) + dev-facing raw detail */}
+            <div className="font-medium">{t(`error.${block.code ?? 'internal'}`)}</div>
+            {block.message && (
+              <div className="mt-0.5 whitespace-pre-wrap break-words font-mono text-[12px] text-crit/80">
+                {block.message}
+              </div>
+            )}
+          </div>
         </div>
       )
   }

@@ -6,6 +6,10 @@ export type CrewRole = 'lead' | 'copilot' | 'librarian' | 'critic' | 'system'
 
 export type RiskLevel = 'read_only' | 'mutating' | 'destructive' | 'external'
 
+/** Stable, language-neutral error classification (mirrors kestrel-protocol ErrorCode).
+ * The UI localizes the code; `message` is dev-facing English detail. */
+export type ErrorCode = 'backend' | 'tool' | 'store' | 'cancelled' | 'internal'
+
 export type EventPayload =
   | { type: 'user_input'; text: string; images?: string[] }
   | { type: 'agent_text'; text: string }
@@ -16,7 +20,7 @@ export type EventPayload =
   | { type: 'tool_result'; call_id: string; ok: boolean; content: string }
   | { type: 'turn_completed'; reason: string }
   | { type: 'context_budget'; used_tokens: number; n_ctx: number }
-  | { type: 'error'; message: string }
+  | { type: 'error'; message: string; code?: ErrorCode }
 
 export interface KestrelEvent {
   seq: number
