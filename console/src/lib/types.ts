@@ -9,8 +9,10 @@ export type RiskLevel = 'read_only' | 'mutating' | 'destructive' | 'external'
 export type EventPayload =
   | { type: 'user_input'; text: string }
   | { type: 'agent_text'; text: string }
+  | { type: 'agent_reasoning'; text: string }
   | { type: 'tool_call_requested'; call_id: string; tool: string; args: unknown }
   | { type: 'approval_required'; call_id: string; risk: RiskLevel; review: string | null }
+  | { type: 'approval_resolved'; call_id: string; approved: boolean }
   | { type: 'tool_result'; call_id: string; ok: boolean; content: string }
   | { type: 'turn_completed'; reason: string }
   | { type: 'context_budget'; used_tokens: number; n_ctx: number }
@@ -20,10 +22,13 @@ export interface KestrelEvent {
   seq: number
   actor: CrewRole
   payload: EventPayload
+  /** client-attached receive time (ms). the wire event has no timestamp yet;
+   * stamped at the SSE edge for display. persisted event timestamps ride G11. */
+  ts?: number
 }
 
 export type Op =
-  | { type: 'user_input'; text: string }
+  | { type: 'user_input'; text: string; think?: boolean }
   | { type: 'approve'; call_id: string }
   | { type: 'deny'; call_id: string; reason: string | null }
   | { type: 'cancel' }

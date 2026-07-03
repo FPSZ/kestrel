@@ -22,10 +22,10 @@ export interface ToolBlock {
 }
 
 export type Block =
-  | { kind: 'user'; seq: number; text: string }
-  | { kind: 'assistant'; seq: number; text: string }
+  | { kind: 'user'; seq: number; ts?: number; text: string }
+  | { kind: 'assistant'; seq: number; ts?: number; text: string; reasoning?: string }
   | ToolBlock
-  | { kind: 'error'; seq: number; message: string }
+  | { kind: 'error'; seq: number; ts?: number; message: string }
 
 export interface ConversationState {
   blocks: Block[]
@@ -52,7 +52,7 @@ export function fold(state: ConversationState, event: KestrelEvent): Conversatio
 
   switch (p.type) {
     case 'user_input':
-      blocks.push({ kind: 'user', seq: event.seq, text: p.text })
+      blocks.push({ kind: 'user', seq: event.seq, ts: event.ts, text: p.text })
       turnActive = true
       break
     case 'agent_text': {
@@ -60,7 +60,18 @@ export function fold(state: ConversationState, event: KestrelEvent): Conversatio
       if (last && last.kind === 'assistant') {
         blocks[blocks.length - 1] = { ...last, text: last.text + p.text }
       } else {
-        blocks.push({ kind: 'assistant', seq: event.seq, text: p.text })
+        blocks.push({ kind: 'assistant', seq: event.seq, ts: event.ts, text: p.text })
+      }
+      break
+    }
+    case 'agent_reasoning': {
+      // reasoning streams before the answer; attach it to the current assistant
+      // block (creating one with empty text if the answer hasn't started yet).
+      const last = blocks[blocks.length - 1]
+      if (last && last.kind === 'assistant') {
+        blocks[blocks.length - 1] = { ...last, reasoning: (last.reasoning ?? '') + p.text }
+      } else {
+        blocks.push({ kind: 'assistant', seq: event.seq, ts: event.ts, text: '', reasoning: p.text })
       }
       break
     }
@@ -81,6 +92,16 @@ export function fold(state: ConversationState, event: KestrelEvent): Conversatio
       }
       break
     }
+    case 'approval_resolved': {
+      // approve flips the card to running (deny is followed by a tool_result
+      // error, which sets 'error'). recording the decision is what makes a
+      // page-switch / reconnect replay NOT re-show the approval prompt.
+      const i = findTool(p.call_id)
+      if (i >= 0 && p.approved) {
+        blocks[i] = { ...(blocks[i] as ToolBlock), status: 'running' }
+      }
+      break
+    }
     case 'tool_result': {
       const i = findTool(p.call_id)
       if (i >= 0) {
@@ -92,7 +113,7 @@ export function fold(state: ConversationState, event: KestrelEvent): Conversatio
       turnActive = false
       break
     case 'error':
-      blocks.push({ kind: 'error', seq: event.seq, message: p.message })
+      blocks.push({ kind: 'error', seq: event.seq, ts: event.ts, message: p.message })
       turnActive = false
       break
   }
@@ -107,7 +128,8 @@ export function useConversation(): ConversationState & { status: StreamStatus } 
 
   useEffect(() => {
     const unsub = client.subscribe(
-      (event) => setState((s) => fold(s, event)),
+      // stamp receive time at the SSE edge (kept out of pure fold, passed as data)
+      (event) => setState((s) => fold(s, { ...event, ts: event.ts ?? Date.now() })),
       (st) => setStatus(st),
     )
     return unsub
