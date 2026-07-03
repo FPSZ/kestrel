@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Check, Copy, HardDrive, RefreshCw, Square } from 'lucide-react'
+import { Check, Copy, Cpu, FolderOpen, HardDrive, RefreshCw, Square } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { tl } from './strings'
 
@@ -22,9 +22,8 @@ type EngineStatus = { state: EngineState; base_url: string; model: string; error
 const DIR_KEY = 'kestrel.modelsDir'
 
 /**
- * Model launcher (ADR-0010), shaped after LM Studio's Models + Local Server views.
- * Lists local GGUF models with real metadata, runs one as a local llama.cpp server
- * (start/stop/status), and surfaces engines already running on common ports.
+ * Model launcher (ADR-0010). Guided top-down flow: point at your models folder,
+ * pick a model, hit Load — it runs as a local llama.cpp server (start/stop/status).
  * Discovery/launch stay loopback + whitelisted-bin (§5); the agent connects to
  * whatever base_url its config points at.
  */
@@ -134,14 +133,15 @@ export function LauncherView() {
   const running = scan?.running ?? []
   const list = models?.models ?? []
   const engineActive = status && status.state !== 'stopped'
+  const canLoad = !!selectedBin
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="mx-auto max-w-3xl px-6 py-8">
+      <div className="mx-auto max-w-4xl px-6 py-8">
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
-            <h2 className="mb-1 text-[16px] font-semibold tracking-[-0.01em]">{tl('launcher.title')}</h2>
-            <p className="max-w-prose text-[13px] leading-relaxed text-ink-3">{tl('launcher.subtitle')}</p>
+            <h2 className="text-[17px] font-semibold tracking-[-0.01em]">{tl('launcher.title')}</h2>
+            <p className="mt-1 text-[13px] leading-relaxed text-ink-3">{tl('launcher.howto')}</p>
           </div>
           <button
             type="button"
@@ -160,16 +160,25 @@ export function LauncherView() {
           </div>
         )}
 
-        {/* Local server status card */}
-        <div className="mb-6 rounded-lg border border-line bg-surface px-4 py-3">
-          <div className="mb-2 flex items-center gap-2">
+        {/* Local server — the live status hero. Directs the user down when idle. */}
+        <div
+          className={cn(
+            'mb-6 rounded-lg border px-4 py-3.5',
+            status?.state === 'running'
+              ? 'border-ok/30 bg-ok/5'
+              : status?.state === 'failed'
+                ? 'border-crit/30 bg-crit/5'
+                : 'border-line bg-surface',
+          )}
+        >
+          <div className="flex items-center gap-2">
             <span className="text-[13px] font-semibold text-ink-2">{tl('launcher.engine.title')}</span>
             <StateBadge state={status?.state ?? 'stopped'} />
             {engineActive && (
               <button
                 type="button"
                 onClick={() => void stopEngine()}
-                className="focus-ring ml-auto flex items-center gap-1.5 rounded-md border border-line px-2 py-1 text-[12px] text-ink-2 transition-colors hover:bg-surface-2"
+                className="focus-ring ml-auto flex items-center gap-1.5 rounded-md border border-line px-2.5 py-1 text-[12px] text-ink-2 transition-colors hover:bg-surface-2"
               >
                 <Square className="h-[12px] w-[12px]" strokeWidth={2} />
                 {tl('launcher.stop')}
@@ -177,12 +186,14 @@ export function LauncherView() {
             )}
           </div>
           {engineActive ? (
-            <div className="space-y-1 text-[12.5px]">
-              {status?.model && <div className="font-mono text-ink-2">{status.model}</div>}
+            <div className="mt-2 space-y-1.5 text-[12.5px]">
+              {status?.model && <div className="font-mono text-[13px] text-ink">{status.model}</div>}
               {status?.base_url && (
-                <div className="text-ink-mute">
-                  {tl('launcher.engine.reachable')}{' '}
-                  <span className="font-mono text-accent-ink">{status.base_url}</span>
+                <div className="flex items-center gap-1.5 text-ink-mute">
+                  {tl('launcher.engine.reachable')}
+                  <span className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-accent-ink">
+                    {status.base_url}
+                  </span>
                 </div>
               )}
               {status?.state === 'failed' && status.error && (
@@ -190,23 +201,26 @@ export function LauncherView() {
               )}
             </div>
           ) : (
-            <p className="text-[12.5px] text-ink-mute">{tl('launcher.engine.idle')}</p>
+            <p className="mt-1.5 text-[12.5px] text-ink-mute">{tl('launcher.engine.idle')}</p>
           )}
         </div>
 
-        {/* Models folder + engine binary controls */}
-        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end">
-          <label className="flex-1">
-            <span className="mb-1 block text-[12px] text-ink-3">{tl('launcher.dir.label')}</span>
+        {/* Step 1 — models folder + engine binary */}
+        <SectionLabel text={tl('launcher.step.folder')} />
+        <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end">
+          <div className="flex-1">
             <div className="flex gap-2">
-              <input
-                value={dir}
-                onChange={(e) => setDir(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && applyDir()}
-                placeholder={tl('launcher.dir.placeholder')}
-                spellCheck={false}
-                className="focus-ring min-w-0 flex-1 rounded-md border border-line bg-surface px-2.5 py-1.5 font-mono text-[12.5px] text-ink-2 placeholder:text-ink-mute"
-              />
+              <div className="focus-within:border-line-2 flex min-w-0 flex-1 items-center gap-2 rounded-md border border-line bg-surface px-2.5">
+                <FolderOpen className="h-[15px] w-[15px] shrink-0 text-ink-mute" strokeWidth={1.8} />
+                <input
+                  value={dir}
+                  onChange={(e) => setDir(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && applyDir()}
+                  placeholder={tl('launcher.dir.placeholder')}
+                  spellCheck={false}
+                  className="min-w-0 flex-1 bg-transparent py-2 font-mono text-[12.5px] text-ink-2 placeholder:text-ink-mute focus:outline-none"
+                />
+              </div>
               <button
                 type="button"
                 onClick={applyDir}
@@ -215,100 +229,88 @@ export function LauncherView() {
                 {tl('launcher.rescan')}
               </button>
             </div>
-          </label>
-          <label className="sm:w-56">
-            <span className="mb-1 block text-[12px] text-ink-3">{tl('launcher.bin.label')}</span>
+          </div>
+          <div className="sm:w-56">
             {bins.length > 0 ? (
-              <select
-                value={selectedBin}
-                onChange={(e) => setSelectedBin(e.target.value)}
-                className="focus-ring w-full truncate rounded-md border border-line bg-surface px-2.5 py-1.5 font-mono text-[12.5px] text-ink-2"
-              >
-                {bins.map((b) => (
-                  <option key={b.path} value={b.path}>
-                    {basename(b.path)}
-                    {b.on_path ? ` · ${tl('launcher.bin.onPath')}` : ''}
-                  </option>
-                ))}
-              </select>
+              <div className="flex items-center gap-2 rounded-md border border-line bg-surface px-2.5">
+                <Cpu className="h-[15px] w-[15px] shrink-0 text-ink-mute" strokeWidth={1.8} />
+                <select
+                  value={selectedBin}
+                  onChange={(e) => setSelectedBin(e.target.value)}
+                  className="w-full truncate bg-transparent py-2 font-mono text-[12.5px] text-ink-2 focus:outline-none"
+                >
+                  {bins.map((b) => (
+                    <option key={b.path} value={b.path} className="bg-bezel">
+                      {basename(b.path)}
+                      {b.on_path ? ` · ${tl('launcher.bin.onPath')}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
             ) : (
-              <div className="rounded-md border border-dashed border-line px-2.5 py-1.5 text-[12px] text-ink-mute">
+              <div className="rounded-md border border-dashed border-line px-2.5 py-2 text-[12px] text-ink-mute">
                 {tl('launcher.bin.none')}
               </div>
             )}
-          </label>
+          </div>
         </div>
 
-        {/* Local models table */}
+        {/* Step 2 — pick a model to load */}
         <div className="mb-2 flex items-center justify-between">
-          <h3 className="text-[13px] font-semibold text-ink-2">{tl('launcher.models.title')}</h3>
-          {models && (
+          <SectionLabel text={tl('launcher.step.pick')} />
+          {models && list.length > 0 && (
             <span className="text-[12px] text-ink-mute">
               {tl('launcher.models.meta', { n: list.length, size: fmtBytes(models.total_bytes) })}
             </span>
           )}
         </div>
-        <div className="overflow-hidden rounded-lg border border-line">
-          {list.length === 0 ? (
-            <div className="px-4 py-6 text-center text-[12.5px] text-ink-mute">
-              {tl('launcher.models.empty')}
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-[12.5px]">
-                <thead className="text-ink-mute">
-                  <tr className="border-b border-line">
-                    <th className="px-3 py-2 font-medium">{tl('launcher.col.model')}</th>
-                    <th className="px-3 py-2 font-medium">{tl('launcher.col.arch')}</th>
-                    <th className="px-3 py-2 font-medium">{tl('launcher.col.params')}</th>
-                    <th className="px-3 py-2 font-medium">{tl('launcher.col.quant')}</th>
-                    <th className="px-3 py-2 text-right font-medium">{tl('launcher.col.size')}</th>
-                    <th className="px-3 py-2" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {list.map((m) => (
-                    <tr key={m.path} className="border-b border-line/60 last:border-b-0">
-                      <td className="max-w-[16rem] truncate px-3 py-2 text-ink" title={m.path}>
-                        {m.name}
-                      </td>
-                      <td className="px-3 py-2 font-mono text-ink-3">{m.arch || '-'}</td>
-                      <td className="px-3 py-2 text-ink-3">{m.params || '-'}</td>
-                      <td className="px-3 py-2">
-                        {m.quant ? (
-                          <span className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-accent-ink">
-                            {m.quant}
-                          </span>
-                        ) : (
-                          '-'
-                        )}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-ink-3">
-                        {fmtBytes(m.size_bytes)}
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        <button
-                          type="button"
-                          onClick={() => void loadModel(m)}
-                          disabled={!selectedBin || pending === m.path}
-                          title={selectedBin ? undefined : tl('launcher.needBin')}
-                          className="focus-ring rounded-md bg-accent px-2.5 py-1 text-[12px] font-medium text-desktop transition-colors hover:bg-accent-2 disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          {pending === m.path ? tl('launcher.loadingBtn') : tl('launcher.load')}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        {list.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-line px-4 py-10 text-center">
+            <FolderOpen className="h-6 w-6 text-ink-mute" strokeWidth={1.5} />
+            <p className="text-[13px] text-ink-2">{tl('launcher.models.empty')}</p>
+            <p className="max-w-sm text-[12px] text-ink-mute">{tl('launcher.models.emptyHint')}</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1.5">
+            {list.map((m) => (
+              <div
+                key={m.path}
+                className="flex items-center gap-3 rounded-lg border border-line bg-surface px-3 py-2.5 transition-colors hover:border-line-2"
+              >
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-accent/12 text-accent-ink">
+                  <Cpu className="h-[18px] w-[18px]" strokeWidth={1.7} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[13.5px] font-medium text-ink" title={m.path}>
+                    {m.name}
+                  </div>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                    {m.arch && <Pill tone="plain">{m.arch}</Pill>}
+                    {m.params && <Pill tone="plain">{m.params}</Pill>}
+                    {m.quant && <Pill tone="accent">{m.quant}</Pill>}
+                  </div>
+                </div>
+                <span className="shrink-0 whitespace-nowrap font-mono text-[12px] text-ink-mute">
+                  {fmtBytes(m.size_bytes)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void loadModel(m)}
+                  disabled={!canLoad || pending === m.path}
+                  title={canLoad ? undefined : tl('launcher.needBin')}
+                  className="focus-ring shrink-0 rounded-md bg-accent px-3.5 py-1.5 text-[12.5px] font-semibold text-desktop transition-colors hover:bg-accent-2 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {pending === m.path ? tl('launcher.loadingBtn') : tl('launcher.load')}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Running engines detected on common ports */}
         <div className="mt-8">
-          <h3 className="mb-2 text-[13px] font-semibold text-ink-2">{tl('launcher.running.title')}</h3>
-          <div className="overflow-hidden rounded-lg border border-line">
+          <SectionLabel text={tl('launcher.running.title')} />
+          <div className="mt-2 overflow-hidden rounded-lg border border-line">
             {running.length === 0 ? (
               <div className="px-4 py-4 text-[12.5px] text-ink-mute">{tl('launcher.running.empty')}</div>
             ) : (
@@ -318,9 +320,7 @@ export function LauncherView() {
                   className="flex items-center gap-3 border-b border-line px-4 py-2.5 last:border-b-0"
                 >
                   <HardDrive className="h-[15px] w-[15px] shrink-0 text-ink-mute" strokeWidth={1.8} />
-                  <span className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-accent-ink">
-                    {e.kind}
-                  </span>
+                  <Pill tone="accent">{e.kind}</Pill>
                   <span className="truncate font-mono text-[12.5px] text-ink-2">{e.base_url}</span>
                   <span className="ml-auto shrink-0 truncate text-[12px] text-ink-mute">
                     {e.model ?? ''}
@@ -348,6 +348,25 @@ export function LauncherView() {
   )
 }
 
+function SectionLabel({ text }: { text: string }) {
+  return <div className="text-[11.5px] font-semibold uppercase tracking-wide text-ink-3">{text}</div>
+}
+
+function Pill({ children, tone }: { children: React.ReactNode; tone: 'plain' | 'accent' }) {
+  return (
+    <span
+      className={cn(
+        'rounded px-1.5 py-0.5 font-mono text-[11px]',
+        tone === 'accent'
+          ? 'border border-accent/25 text-accent-ink'
+          : 'bg-surface-2 text-ink-3',
+      )}
+    >
+      {children}
+    </span>
+  )
+}
+
 function StateBadge({ state }: { state: EngineState }) {
   const map: Record<EngineState, [string, string]> = {
     stopped: [tl('launcher.engine.stopped'), 'text-ink-mute'],
@@ -355,7 +374,7 @@ function StateBadge({ state }: { state: EngineState }) {
     running: [tl('launcher.engine.running'), 'text-ok'],
     failed: [tl('launcher.engine.failed'), 'text-crit'],
   }
-  const [label, color] = map[state]
+  const [label, color] = map[state] ?? map.stopped
   return (
     <span className={cn('flex items-center gap-1.5 text-[12px] font-medium', color)}>
       <span className={cn('h-1.5 w-1.5 rounded-full bg-current', state === 'loading' && 'animate-pulse')} />
