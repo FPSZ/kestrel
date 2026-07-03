@@ -9,31 +9,31 @@
 
 ## 状态记号
 
-| 记号 | 含义 |
-| --- | --- |
-| `[x]` | 已完成并提交 |
-| `[~]` | 进行中 |
-| `[ ]` | 待办（属 architecture.md §9 已定路线） |
-| `[!]` | 阻塞 / 暂缓（注明原因与解冻条件） |
+| 记号    | 含义                                                        |
+| ------- | ----------------------------------------------------------- |
+| `[x]` | 已完成并提交                                                |
+| `[~]` | 进行中                                                      |
+| `[ ]` | 待办（属 architecture.md §9 已定路线）                     |
+| `[!]` | 阻塞 / 暂缓（注明原因与解冻条件）                           |
 | `[?]` | 待拍板（创新候选，需先立 ADR + 用户定方向，尚未进承诺路线） |
 
 ---
 
 ## 里程碑总览
 
-| 里程碑 | 交付 | 机组形态 | 状态 |
-| --- | --- | --- | --- |
-| M1 骨架 | core loop + OpenAI 兼容 backend + 4 工具 + 权限门 + JSONL 日志 + REPL | 独奏 | `[x]` 已交付 |
-| WebUI 个人版 | kestrel-server(SSE+Op) + console 扁平深色壳 | 独奏可视化 | `[x]` 已交付 |
-| **地基（G）· 横切约定** | i18n + 设计令牌 + 事件日志前向兼容 + core 确定性 + 密钥 + 错误分类 | 与机组无关 | `[~]` **先于 M2** |
-| **创新种子小里程碑** | 可靠性地基 + Glass Engine 起步 + 自我进化捕获起步 | 独奏增强 | `[?]` **待拍板（见文末岔路）** |
-| **模型启动器（L）** | 自启 llama.cpp + 委托已有宿主 + 纯连接回退 + 参数 UI（ADR-0010） | on-ramp | `[ ]` 近期起步，全量骑 M2-M4 |
-| **M2 剧场核心** | 模型池 + 作业路由 + 副手异地压缩 + actor 事件 + 机组账本 | 主脑+副手 | `[ ]` **下一个承诺里程碑** |
-| M3 全机组 | 书记(记忆检索) + 审校(高危复核) + 能力探针 + 回放测试进 CI | 全机组 | `[ ]` 待办 |
-| M4 扩展 | browser/process 工具 + 状态树分支 + MCP 桥 + 投机代理 + Loadout + 轮内取消 | +时间旅行/秒回 | `[ ]` 待办 |
-| M5 夜班 | 闲时自主家务 + 夜班报告（默认只读，ADR-0004） | +夜班 | `[ ]` 待办 |
-| M6 睡眠周期 | 本地 LoRA 自我进化（北极星，落地前另立 ADR） | 会做梦 | `[ ]` 待办（先立 ADR） |
-| 朋友版 | kestrel-server 叠 认证 + 多会话隔离 + TLS | 不改 core | `[ ]` 待办 |
+| 里程碑                         | 交付                                                                       | 机组形态       | 状态                                   |
+| ------------------------------ | -------------------------------------------------------------------------- | -------------- | -------------------------------------- |
+| M1 骨架                        | core loop + OpenAI 兼容 backend + 4 工具 + 权限门 + JSONL 日志 + REPL      | 独奏           | `[x]` 已交付                         |
+| WebUI 个人版                   | kestrel-server(SSE+Op) + console 扁平深色壳                                | 独奏可视化     | `[x]` 已交付                         |
+| **地基（G）· 横切约定** | i18n + 设计令牌 + 事件日志前向兼容 + core 确定性 + 密钥 + 错误分类         | 与机组无关     | `[~]` **先于 M2**              |
+| **创新种子小里程碑**     | 可靠性地基 + Glass Engine 起步 + 自我进化捕获起步                          | 独奏增强       | `[?]` **待拍板（见文末岔路）** |
+| **模型启动器（L）**      | 自启 llama.cpp + 委托已有宿主 + 纯连接回退 + 参数 UI（ADR-0010）           | on-ramp        | `[ ]` 近期起步，全量骑 M2-M4         |
+| **M2 剧场核心**          | 模型池 + 作业路由 + 副手异地压缩 + actor 事件 + 机组账本                   | 主脑+副手      | `[ ]` **下一个承诺里程碑**     |
+| M3 全机组                      | 书记(记忆检索) + 审校(高危复核) + 能力探针 + 回放测试进 CI                 | 全机组         | `[ ]` 待办                           |
+| M4 扩展                        | browser/process 工具 + 状态树分支 + MCP 桥 + 投机代理 + Loadout + 轮内取消 | +时间旅行/秒回 | `[ ]` 待办                           |
+| M5 夜班                        | 闲时自主家务 + 夜班报告（默认只读，ADR-0004）                              | +夜班          | `[ ]` 待办                           |
+| M6 睡眠周期                    | 本地 LoRA 自我进化（北极星，落地前另立 ADR）                               | 会做梦         | `[ ]` 待办（先立 ADR）               |
+| 朋友版                         | kestrel-server 叠 认证 + 多会话隔离 + TLS                                  | 不改 core      | `[ ]` 待办                           |
 
 下面按里程碑展开。已交付的折叠成结论，未做的按"protocol → core → 适配器 → server → console → 测试"的依赖顺序拆。
 
@@ -67,22 +67,22 @@ CI 硬门槛(fmt / clippy -D warnings / test / cargo-deny)全绿。
 顺带把两个近期可靠性/后端项做实。全程 core 一行不改设计、不新增 ADR（都是把已 Accepted
 的设计落地，非新方向）。fmt/clippy(-D warnings)/test(35 通过)/deny 全绿。
 
-- [x] F1  Context Ledger 接进主循环：`AgentConfig.n_ctx` 由后端 `probe()` 实测喂入；
-      轮次边界按完整历史确定性重算 token（近似 bytes/4），发 `Event::ContextBudget`
-      （结构化数值、语言中立、无时钟/随机——合地基铁律 #2/#5）。压缩派发仍属 M2。
-- [x] F2  read-before-edit 强制：主循环层维护会话级已读文件集（纯字符串、零 IO、确定性），
-      编辑未读文件直接挡回并喂可操作纠错提示（architecture.md §8 从注释变约束）。
-- [x] F3  deny 优先预过滤：`config.deny_tools` 组装时经 `ToolSet::deny` 从工具列表删除
-      （模型看不见、省 schema token），`PermissionEngine::decide_tool` 运行时兜底 deny。
-- [x] F4  轮内取消：`stream_once` / 工具执行期间 `select!` 监听 `Op::Cancel`，触发轮级
-      取消令牌（贯穿 shell 子进程），收尾为 `TurnCompleted{reason:"cancelled"}`。从 M4 提前。
-- [x] F5  llama.cpp / LM Studio 专属后端：组合复用 OpenAI 兼容流式，`probe()` 分别打
-      `/props`、`/api/v0/models` 读真实 `n_ctx`（失败优雅回退配置值）；`backend.kind` 选择，
-      `kestrel_backend::build()` 工厂。slot save/restore 仍 no-op（影子槽属 M2 高风险 spike）。
-- [x] F6  search 工具 regex + glob：`pattern`（默认字面，`regex:true` 转正则）+ 可选 `glob`
-      文件名过滤（零依赖极简匹配器），向后兼容；补 grep+glob 合一（原 architecture.md §8 遗留）。
-- [x] F7  回放 harness 种子：`tests/replays/auth_refactor.jsonl` fixture + `kestrel-store`
-      回放测试，钉死"改 Event 形状即破坏历史/fixture"这条地基铁律。测试从 12 涨到 35。
+- [X] F1  Context Ledger 接进主循环：`AgentConfig.n_ctx` 由后端 `probe()` 实测喂入；
+  轮次边界按完整历史确定性重算 token（近似 bytes/4），发 `Event::ContextBudget`
+  （结构化数值、语言中立、无时钟/随机——合地基铁律 #2/#5）。压缩派发仍属 M2。
+- [X] F2  read-before-edit 强制：主循环层维护会话级已读文件集（纯字符串、零 IO、确定性），
+  编辑未读文件直接挡回并喂可操作纠错提示（architecture.md §8 从注释变约束）。
+- [X] F3  deny 优先预过滤：`config.deny_tools` 组装时经 `ToolSet::deny` 从工具列表删除
+  （模型看不见、省 schema token），`PermissionEngine::decide_tool` 运行时兜底 deny。
+- [X] F4  轮内取消：`stream_once` / 工具执行期间 `select!` 监听 `Op::Cancel`，触发轮级
+  取消令牌（贯穿 shell 子进程），收尾为 `TurnCompleted{reason:"cancelled"}`。从 M4 提前。
+- [X] F5  llama.cpp / LM Studio 专属后端：组合复用 OpenAI 兼容流式，`probe()` 分别打
+  `/props`、`/api/v0/models` 读真实 `n_ctx`（失败优雅回退配置值）；`backend.kind` 选择，
+  `kestrel_backend::build()` 工厂。slot save/restore 仍 no-op（影子槽属 M2 高风险 spike）。
+- [X] F6  search 工具 regex + glob：`pattern`（默认字面，`regex:true` 转正则）+ 可选 `glob`
+  文件名过滤（零依赖极简匹配器），向后兼容；补 grep+glob 合一（原 architecture.md §8 遗留）。
+- [X] F7  回放 harness 种子：`tests/replays/auth_refactor.jsonl` fixture + `kestrel-store`
+  回放测试，钉死"改 Event 形状即破坏历史/fixture"这条地基铁律。测试从 12 涨到 35。
 
 **明确暂缓（各需先立 ADR / 属里程碑级，非本轮范围）**：
 
@@ -98,9 +98,9 @@ CI 硬门槛(fmt / clippy -D warnings / test / cargo-deny)全绿。
 "现在几行、以后重构一周"那一类。趁代码还小锁进规范，避免铺开后回填几百个调用点。
 清单与取舍见 [foundations.md](foundations.md)；硬规则见 [AGENTS.md §5.1](../../AGENTS.md)；i18n 决策见 [ADR-0008](../adr/0008-i18n-localization.md)。
 
-- [x] G1  ADR-0008：i18n / 语言中立事件日志 / 可本地化错误（已定：zh-CN+en-US、模型侧英文豁免）
-- [x] G2  AGENTS.md §5.1 地基铁律 + §10 自查项（i18n / 设计令牌 / 确定性 / 密钥 / 前向兼容）
-- [x] G3  foundations.md 地基清单（Tier 1-3 + 待拍板项）
+- [X] G1  ADR-0008：i18n / 语言中立事件日志 / 可本地化错误（已定：zh-CN+en-US、模型侧英文豁免）
+- [X] G2  AGENTS.md §5.1 地基铁律 + §10 自查项（i18n / 设计令牌 / 确定性 / 密钥 / 前向兼容）
+- [X] G3  foundations.md 地基清单（Tier 1-3 + 待拍板项）
 - [ ] G4  protocol/core：错误分类 `ErrorCode` + 结构化 params，替换 core/tools 里硬编码英文错误串
 - [ ] G5  console：i18n 脚手架（`t(key,params)` + `src/i18n/{en-US,zh-CN}.json`）+ 迁移现有硬编码文本
 - [ ] G6  kestrel-cli：用户可见 TUI/REPL 文本走 catalog（tracing 开发日志保持英文）
@@ -109,7 +109,7 @@ CI 硬门槛(fmt / clippy -D warnings / test / cargo-deny)全绿。
 - [ ] G9  ADR-0011 + 实现：事件日志 `schema_version` 信封 + 容忍解析（只增不改字段）
 - [ ] G10 密钥：`SecretString` 型（不 Debug 打印）+ 审计日志/事件/UI/提交无泄漏
 - [ ] G11 locale 格式化（日期/数字 Intl/Rust）+ 时间戳统一 UTC 存
-- [x] G12 ADR-0009：存储位置定为 OS 标准目录（`.kestrel/` opt-in + 版本化迁移）
+- [X] G12 ADR-0009：存储位置定为 OS 标准目录（`.kestrel/` opt-in + 版本化迁移）
 - [ ] G13 kestrel-store：改用 OS 标准目录（`directories` crate）+ `layout_version` 迁移钩子 + 从旧 `./sessions` 迁移（ADR-0009）
 - [ ] G14 fmt/clippy/test/deny + console build 全绿；提交并推送地基段
 
@@ -121,7 +121,7 @@ Tier 2 其余（配置前向兼容 / a11y 基线 / 路径沙箱 / API 版本化 
 薄监督器、不做第二个 Ollama：只启动/监督 llama.cpp + 委托已有宿主 + 纯连接回退。差异化 =
 通用宿主结构上做不到的 agent 感知启动（强制 --jinja、探针、KV/机组/Loadout 接线）。
 
-- [x] L1  ADR-0010：模型启动器决策（定位/三种来源/安全边界/被否决方案）
+- [X] L1  ADR-0010：模型启动器决策（定位/三种来源/安全边界/被否决方案）
 - [ ] L2  端口契约：`launch(spec) -> Handle` / `health` / `stop`（先定契约再写实现）
 - [ ] L3  可行性 spike：自启 llama.cpp（spawn `--jinja` + 健康轮询就绪）+ **纯连接回退**（现状零启动）
 - [ ] L4  委托已有宿主：检测 `lms` / `ollama` / 已在跑的 server，调用或直连
@@ -198,8 +198,8 @@ L2/L3 近期即可起步（与地基/创新并行）；L8/L9 骑 M2/M3。先出 
 - [ ] M4.2  状态树分支：slot save/restore 支撑会话分叉/回溯，是 Glass Engine 中期 Fork/Scrubber 的底座
 - [ ] M4.3  投机代理（ADR-0004）：空闲算力预计算 2-3 个未来分支，命中即秒回——成本反转的落地
 - [ ] M4.4  Loadout 装备编组（ADR-0006）：声明式清单 + 成本感知编译器（实时算 token 账、超预算即拒）+ 向导；权限永不随导入继承
-- [x] M4.5  轮内取消：core 支持 turn 中途取消（已在"地基修复"轮提前落地，见上文 F4；
-      前端 Stop 按钮后端已就绪，console 接线待办）
+- [X] M4.5  轮内取消：core 支持 turn 中途取消（已在"地基修复"轮提前落地，见上文 F4；
+  前端 Stop 按钮后端已就绪，console 接线待办）
 - [ ] M4.6  MCP 外接桥（v2 外接，内置工具仍走原生 trait）
 - [ ] M4.7  fmt/clippy/test/deny 全绿；提交并推送 M4
 

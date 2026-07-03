@@ -386,6 +386,7 @@ enum Decision  { Allow, AskUser, Deny }
 - [ADR-0007 WebUI 个人版：浏览器 + axum](adr/0007-webui-browser-axum.md)
 - [ADR-0008 本地化：表现层 i18n + 语言中立的事件日志](adr/0008-i18n-localization.md)
 - [ADR-0009 数据存储位置与布局：OS 标准目录 + 版本化迁移](adr/0009-storage-layout.md)
+- [ADR-0010 模型启动器：把模型作为 agent 的一部分来启动/监督](adr/0010-model-launcher.md)
 
 本文档中的调研结论（§2、§5.4 等）的完整证据见 [research/](research/)。
 
