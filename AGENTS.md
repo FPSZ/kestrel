@@ -70,9 +70,10 @@ kestrel/
 ├── kestrel.example.toml      配置示例（kestrel.toml 不入库）
 ├── docs/
 │   ├── architecture.md       架构设计（唯一设计事实源）
+│   ├── vision.md             北极星愿景
 │   ├── adr/                  架构决策记录（NNNN-标题.md，编号递增）
 │   ├── research/             调研报告（YYYY-MM-主题.md）
-│   └── vision.md             北极星愿景
+│   └── planning/             在途文档：任务看板、里程碑计划、头脑风暴（非事实源，定案后收敛）
 ├── crates/
 │   ├── kestrel-protocol/     纯类型，零逻辑零 IO，被所有 crate 依赖
 │   ├── kestrel-core/         agent loop / ledger / permission / crew / ports，零 IO
@@ -91,9 +92,11 @@ kestrel/
 - 设计、原则、路线 -> `docs/architecture.md`
 - 重大决策 -> `docs/adr/`（新增编号文件，永不删除，被推翻的标记 Superseded）
 - 调研、外部参考 -> `docs/research/`
+- 任务看板、里程碑计划、头脑风暴 -> `docs/planning/`（在途文档，非事实源，定案后收敛）
 - 会话数据、编译产物、本地配置（`sessions/`、`target/`、`kestrel.toml`、`*.local.toml`）-> 不入库
 
-不要把临时笔记、调试脚本、导出报告、截图散落在根目录。
+不要把临时笔记、调试脚本、导出报告、截图散落在根目录或 `docs/` 根。`docs/` 根只放
+事实源（architecture.md / vision.md）与分类目录。
 
 ---
 

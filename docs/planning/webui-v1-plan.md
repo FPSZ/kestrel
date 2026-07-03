@@ -1,7 +1,7 @@
 # WebUI 个人版 · 任务看板
 
 按优先级推进。`[x]` 已完成并提交，`[~]` 进行中，`[ ]` 待办。
-设计与架构见 [ADR-0007](adr/0007-webui-browser-axum.md)；本表只跟踪落地进度。
+设计与架构见 [ADR-0007](../adr/0007-webui-browser-axum.md)；本表只跟踪落地进度。
 
 铁律不变：`kestrel-server` 是适配器（可依赖 core），`console` 通过 HTTP 契约通信、
 不进 Rust 依赖图；core 一行不改。
