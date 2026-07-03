@@ -263,7 +263,10 @@ async fn assemble_agent(
             workdir,
             max_tool_output: 8_192,
             n_ctx,
-            limits: TurnLimits::default(),
+            max_tokens: (config.backend.max_tokens > 0).then_some(config.backend.max_tokens),
+            limits: TurnLimits {
+                max_iterations: config.max_iterations,
+            },
         },
     )
 }

@@ -32,6 +32,14 @@ pub struct Config {
     /// 覆盖 `[backend]`。相对路径按配置文件所在目录解析（见组装根）。
     #[serde(default)]
     pub loadout: Option<PathBuf>,
+    /// 单个回合内模型↔工具往返的上限。到顶即以 `max_iterations` 收尾。agentic 任务
+    /// （如 CTF：读二进制→反汇编→试 payload）需要更多轮，故默认给足。
+    #[serde(default = "default_max_iterations")]
+    pub max_iterations: u32,
+}
+
+fn default_max_iterations() -> u32 {
+    25
 }
 
 /// 后端连接配置。
@@ -49,6 +57,14 @@ pub struct BackendConfig {
     pub model: String,
     /// 上下文长度兜底值。探针（llamacpp/lmstudio）成功时以实测值覆盖。
     pub n_ctx: u32,
+    /// 单次生成的 token 上限（`0`=不设限）。掐断失控生成——推理模型在难题上
+    /// 常陷入思考死循环、狂吐 reasoning 却不收敛，此上限交给 llama-server 掐断。
+    #[serde(default = "default_max_tokens")]
+    pub max_tokens: u32,
+}
+
+fn default_max_tokens() -> u32 {
+    8192
 }
 
 impl Default for Config {
@@ -60,6 +76,7 @@ impl Default for Config {
             workdir: PathBuf::from("."),
             sessions_dir: None,
             loadout: None,
+            max_iterations: default_max_iterations(),
         }
     }
 }
@@ -72,6 +89,7 @@ impl Default for BackendConfig {
             api_key: SecretString::default(),
             model: "local".to_owned(),
             n_ctx: 16_384,
+            max_tokens: default_max_tokens(),
         }
     }
 }

@@ -54,6 +54,8 @@ pub struct AgentConfig {
     pub max_tool_output: usize,
     /// 后端真实上下文长度（探测所得，喂给 context ledger 记账；禁止硬编码）。
     pub n_ctx: u32,
+    /// 单次生成 token 上限（`None`=不设限）。掐断失控生成（推理模型思考死循环）。
+    pub max_tokens: Option<u32>,
     /// 迭代约束。
     pub limits: TurnLimits,
 }
@@ -273,6 +275,7 @@ impl Agent {
             tools: self.tools.specs(),
             messages: history.to_vec(),
             think,
+            max_tokens: self.config.max_tokens,
         };
         let mut stream = self.backend.stream(req).await?;
         let mut text = String::new();

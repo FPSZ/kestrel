@@ -17,6 +17,10 @@ pub struct CompletionRequest {
     pub messages: Vec<Message>,
     /// 是否启用思考通道（enable_thinking）。由本轮用户输入的开关决定。
     pub think: bool,
+    /// 单次生成的 token 上限（`None`=不设限）。掐断失控生成（如推理模型的思考死循环），
+    /// 由后端映射到线缆的 `max_tokens`。
+    #[serde(default)]
+    pub max_tokens: Option<u32>,
 }
 
 /// 流式补全的增量。

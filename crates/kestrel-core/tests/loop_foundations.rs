@@ -144,6 +144,7 @@ fn agent_with(tools: ToolSet, script: Vec<Vec<CompletionChunk>>, store: MemStore
             workdir: std::env::temp_dir(),
             max_tool_output: 4096,
             n_ctx: 8192,
+            max_tokens: None,
             limits: TurnLimits::default(),
         },
     )

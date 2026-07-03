@@ -8,6 +8,10 @@ deny_tools = []
 
 workdir = "."
 
+# 单个回合内模型↔工具往返的上限，到顶即收尾。agentic 任务（如 CTF：读二进制→反汇编
+# →试 payload）需要更多轮，默认 25。
+max_iterations = 25
+
 # 会话/数据默认存 OS 标准目录（ADR-0009）：
 #   Windows %LOCALAPPDATA%\Kestrel\data  ·  Linux ~/.local/share/kestrel  ·  macOS ~/Library/Application Support/Kestrel
 # 想让数据留在项目里：在启动目录建一个 .kestrel/ 文件夹（opt-in），或设环境变量
@@ -31,3 +35,4 @@ base_url = "http://127.0.0.1:8080"
 api_key = ""            # 本地后端通常留空
 model = "local"         # LM Studio 需填已加载的模型名
 n_ctx = 16384           # 兜底上下文长度；llamacpp/lmstudio 探测成功时以实测值覆盖
+max_tokens = 8192       # 单次生成 token 上限（0=不限）；掐断推理模型的思考死循环

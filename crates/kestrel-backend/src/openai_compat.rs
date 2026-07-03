@@ -71,6 +71,10 @@ impl OpenAiCompatBackend {
         if !tools.is_empty() {
             body["tools"] = serde_json::Value::Array(tools);
         }
+        // 生成上限：掐断失控生成（推理模型思考死循环）。llama-server / OpenAI 都认 max_tokens。
+        if let Some(cap) = req.max_tokens {
+            body["max_tokens"] = serde_json::json!(cap);
+        }
         body
     }
 }
