@@ -22,8 +22,10 @@ pub struct Config {
     pub deny_tools: Vec<String>,
     /// agent 工作目录（工具的文件操作以此为界）。默认当前目录。
     pub workdir: PathBuf,
-    /// 会话事件日志存放目录。
-    pub sessions_dir: PathBuf,
+    /// 会话事件日志目录的**显式覆盖**。默认 `None`：走 OS 标准数据目录
+    /// （[`crate::Layout`]，ADR-0009）。设置后优先于标准目录（尊重"数据在手边"）。
+    #[serde(default)]
+    pub sessions_dir: Option<PathBuf>,
 }
 
 /// 后端连接配置。
@@ -50,7 +52,7 @@ impl Default for Config {
             approval_policy: "on-request".to_owned(),
             deny_tools: Vec::new(),
             workdir: PathBuf::from("."),
-            sessions_dir: PathBuf::from("sessions"),
+            sessions_dir: None,
         }
     }
 }

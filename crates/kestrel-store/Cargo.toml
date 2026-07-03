@@ -16,6 +16,7 @@ publish.workspace = true
 kestrel-core = { workspace = true }
 kestrel-protocol = { workspace = true }
 async-trait = { workspace = true }
+directories = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

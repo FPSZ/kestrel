@@ -50,8 +50,11 @@ cp kestrel.example.toml kestrel.toml   # 按需改 base_url / model / n_ctx
 ```
 
 M1 是回合制终端 REPL：输入消息，agent 用 read/search/edit/shell 四个工具在工作目录内
-干活，写动作走权限门确认。会话事件写入 `sessions/*.jsonl`。设 `RUST_LOG=kestrel=debug`
-看详细日志。
+干活，写动作走权限门确认。会话事件写入 OS 标准数据目录的 `sessions/*.jsonl`
+（Windows `%LOCALAPPDATA%\Kestrel`、Linux `~/.local/share/kestrel`、macOS
+`~/Library/Application Support/Kestrel`；[ADR-0009](docs/adr/0009-storage-layout.md)）——
+想让数据留在项目里就在启动目录建个 `.kestrel/`（opt-in），或设 `KESTREL_DATA_DIR`。
+设 `RUST_LOG=kestrel=debug` 看详细日志。
 
 ## WebUI（个人版）
 

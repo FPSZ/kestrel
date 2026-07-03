@@ -7,7 +7,13 @@ approval_policy = "on-request"   # on-request | auto | strict
 deny_tools = []
 
 workdir = "."
-sessions_dir = "sessions"
+
+# 会话/数据默认存 OS 标准目录（ADR-0009）：
+#   Windows %LOCALAPPDATA%\Kestrel\data  ·  Linux ~/.local/share/kestrel  ·  macOS ~/Library/Application Support/Kestrel
+# 想让数据留在项目里：在启动目录建一个 .kestrel/ 文件夹（opt-in），或设环境变量
+#   KESTREL_DATA_DIR / KESTREL_CONFIG_DIR。首次运行会把旧的 ./sessions 自动迁移过去（拷贝，不删）。
+# 下面这行是显式覆盖，取消注释即把会话强制存到指定目录（优先于标准目录）：
+# sessions_dir = "sessions"
 
 [backend]
 # kind: openai（兜底，默认）| llamacpp | lmstudio

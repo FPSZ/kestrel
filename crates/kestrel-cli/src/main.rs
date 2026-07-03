@@ -14,7 +14,7 @@ use std::sync::Arc;
 use anyhow::Context;
 use kestrel_core::{Agent, AgentConfig, PermissionEngine, TurnLimits};
 use kestrel_protocol::{Event, Op, SessionId};
-use kestrel_store::{Config, JsonlStore};
+use kestrel_store::{Config, JsonlStore, Layout};
 use tokio::sync::mpsc;
 
 /// 精简 system prompt（前缀稳定、控制在低 token）。
@@ -38,7 +38,11 @@ async fn main() -> anyhow::Result<()> {
         .with_writer(std::io::stderr)
         .init();
 
-    let config = Config::load(&PathBuf::from("kestrel.toml")).context("load kestrel.toml")?;
+    // 解析 OS 标准数据/配置目录（ADR-0009）。启动目录用于 .kestrel/ opt-in 与旧
+    // ./sessions 迁移探测，与 agent 的 workdir 是两回事。
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let layout = Layout::resolve(&cwd).context("resolve data/config layout")?;
+    let config = Config::load(layout.config_file()).context("load config")?;
     let workdir = std::fs::canonicalize(&config.workdir).unwrap_or_else(|_| config.workdir.clone());
     // 展示用：去掉 Windows 扩展长度路径前缀 \\?\。
     let workdir_display = workdir
@@ -71,7 +75,11 @@ async fn main() -> anyhow::Result<()> {
             config.backend.n_ctx
         }
     };
-    let store = Arc::new(JsonlStore::new(config.sessions_dir.clone()));
+    let sessions_dir = config
+        .sessions_dir
+        .clone()
+        .unwrap_or_else(|| layout.sessions_dir());
+    let store = Arc::new(JsonlStore::new(sessions_dir));
     let mut tools = kestrel_tools::builtin();
     let denied = tools.deny(&config.deny_tools);
     if denied > 0 {

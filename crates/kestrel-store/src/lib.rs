@@ -16,14 +16,17 @@
 //! | --- | --- |
 //! | [`jsonl`] | JSONL 事件日志（Store 端口实现） |
 //! | [`config`] | kestrel.toml 单文件配置 |
+//! | [`paths`] | 数据/配置目录解析 + 版本化迁移（ADR-0009） |
 //! | [`profile`] | 模型 profile 读写（能力探针的产物） |
 
 pub mod config;
 pub mod jsonl;
+pub mod paths;
 pub mod profile;
 
 pub use config::{BackendConfig, Config};
 pub use jsonl::JsonlStore;
+pub use paths::Layout;
 
 /// 存储层错误。
 #[derive(Debug, thiserror::Error)]

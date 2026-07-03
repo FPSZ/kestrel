@@ -17,6 +17,12 @@ allow = [
     # webpki-roots（rustls 根证书数据）：宽松数据许可
     "CDLA-Permissive-2.0",
 ]
+# 逐 crate 例外：不放宽全局许可政策，只为特定传递依赖开口。
+# option-ext 是 directories -> dirs-sys 的传递依赖，MPL-2.0（文件级弱 copyleft，
+# 不感染本项目；仅该文件的修改需保持 MPL）。用 directories 拿平台标准目录（ADR-0009）。
+exceptions = [
+    { crate = "option-ext", allow = ["MPL-2.0"] },
+]
 
 [bans]
 multiple-versions = "warn"

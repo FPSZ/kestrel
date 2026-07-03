@@ -32,6 +32,8 @@ kestrel-store = { path = "crates/kestrel-store", version = "0.1.0" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 regex = { version = "1", default-features = false, features = ["std", "unicode"] }
+# 平台标准目录解析（ADR-0009）：不手写 XDG/Windows/macOS 分支
+directories = "5"
 thiserror = "2"
 anyhow = "1"
 async-trait = "0.1"
