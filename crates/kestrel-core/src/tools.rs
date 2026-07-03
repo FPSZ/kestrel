@@ -43,6 +43,21 @@ impl ToolSet {
             .collect()
     }
 
+    /// 预过滤：移除全局 deny 名单里的工具（deny 优先，docs/architecture.md §5.3）。
+    ///
+    /// 在模型看到工具列表之前就删掉——既是安全边界，也省下这些工具的 schema
+    /// token（原则 2）。返回实际移除的数量。
+    pub fn deny(&mut self, names: &[String]) -> usize {
+        let mut removed = 0;
+        for name in names {
+            if self.tools.remove(name).is_some() {
+                self.order.retain(|n| n != name);
+                removed += 1;
+            }
+        }
+        removed
+    }
+
     /// 按名取工具。
     #[must_use]
     pub fn get(&self, name: &str) -> Option<&Arc<dyn Tool>> {
@@ -59,5 +74,54 @@ impl ToolSet {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.order.is_empty()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use async_trait::async_trait;
+    use kestrel_protocol::RiskLevel;
+
+    use super::*;
+    use crate::CoreError;
+    use crate::ports::{ToolCtx, ToolOutput};
+
+    struct Noop(ToolSpec);
+
+    #[async_trait]
+    impl Tool for Noop {
+        fn spec(&self) -> &ToolSpec {
+            &self.0
+        }
+        fn risk(&self, _a: &serde_json::Value) -> RiskLevel {
+            RiskLevel::ReadOnly
+        }
+        async fn call(&self, _a: serde_json::Value, _c: &ToolCtx) -> Result<ToolOutput, CoreError> {
+            Ok(ToolOutput {
+                ok: true,
+                content: String::new(),
+            })
+        }
+    }
+
+    fn tool(name: &str) -> Arc<dyn Tool> {
+        Arc::new(Noop(ToolSpec {
+            name: name.to_owned(),
+            description: name.to_owned(),
+            parameters: serde_json::json!({"type": "object"}),
+        }))
+    }
+
+    #[test]
+    fn deny_prefilters_named_tools_and_keeps_order() {
+        let mut set = ToolSet::new();
+        for n in ["read", "search", "edit", "shell"] {
+            set.register(tool(n));
+        }
+        let removed = set.deny(&["shell".to_owned(), "absent".to_owned()]);
+        assert_eq!(removed, 1, "only the present denied tool counts");
+        assert!(set.get("shell").is_none(), "denied tool is gone");
+        let names: Vec<_> = set.specs().into_iter().map(|s| s.name).collect();
+        assert_eq!(names, ["read", "search", "edit"], "order preserved");
     }
 }

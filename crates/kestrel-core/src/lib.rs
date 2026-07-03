@@ -31,6 +31,7 @@ pub mod ports;
 pub mod tools;
 
 pub use agent::{Agent, AgentConfig, TurnLimits};
+pub use ledger::{ContextLedger, estimate_messages};
 pub use permission::{ApprovalPolicy, PermissionEngine};
 pub use tools::ToolSet;
 

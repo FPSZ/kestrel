@@ -8,6 +8,7 @@
 //! - 迭代上限治 AutoGPT 式无限循环。
 //! - 工具失败把具体错误喂回历史让模型自纠错，不静默重试。
 
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -20,9 +21,15 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use crate::CoreError;
+use crate::ledger::ContextLedger;
 use crate::permission::PermissionEngine;
 use crate::ports::{LlmBackend, Store, ToolCtx};
 use crate::tools::ToolSet;
+
+/// read 工具名：read-before-edit 约束用（主循环层约束，见 docs/architecture.md §8）。
+const READ_TOOL: &str = "read";
+/// edit 工具名：编辑前必须先 read 同一路径。
+const EDIT_TOOL: &str = "edit";
 
 /// agent 主循环的硬性约束（AutoGPT 无限循环的解药）。
 #[derive(Debug, Clone)]
@@ -45,6 +52,8 @@ pub struct AgentConfig {
     pub workdir: PathBuf,
     /// 单个工具输出的截断上限（字节）。
     pub max_tool_output: usize,
+    /// 后端真实上下文长度（探测所得，喂给 context ledger 记账；禁止硬编码）。
+    pub n_ctx: u32,
     /// 迭代约束。
     pub limits: TurnLimits,
 }
@@ -112,6 +121,10 @@ impl Agent {
         event_tx: mpsc::Sender<Event>,
     ) -> Result<(), CoreError> {
         let mut history = vec![Message::text(Role::System, &self.config.system_prompt)];
+        // 已被模型读过的文件（read-before-edit 约束）。会话级：轮 1 读、轮 2 编辑也算。
+        // 纯字符串集合，不碰文件系统——保持 core 零 IO 与确定性。
+        let mut read_paths: HashSet<String> = HashSet::new();
+        let mut ledger = ContextLedger::new(self.config.n_ctx);
         let mut turn = Turn {
             session: &session,
             store: self.store.as_ref(),
@@ -128,17 +141,53 @@ impl Agent {
                     )
                     .await?;
                     history.push(Message::text(Role::User, text));
+                    // 每一轮一个新的取消令牌（Op::Cancel 触发它，贯穿流式与工具子进程）。
+                    let cancel = CancellationToken::new();
                     // 一轮内的错误（后端连不上、工具基础设施故障）不杀会话：
-                    // 报成 Error 事件，回到提示符，用户可修复后重试。取消同理。
-                    if let Err(e) = self.run_turn(&mut turn, &mut history, &mut op_rx).await {
-                        turn.emit(
-                            CrewRole::System,
-                            EventPayload::Error {
-                                message: e.to_string(),
-                            },
+                    // 报成 Error 事件，回到提示符，用户可修复后重试。
+                    match self
+                        .run_turn(
+                            &mut turn,
+                            &mut history,
+                            &mut read_paths,
+                            &mut op_rx,
+                            &cancel,
                         )
-                        .await?;
+                        .await
+                    {
+                        Ok(()) => {}
+                        // 用户中断：正常收尾（不是错误），前端与 CLI 都按 TurnCompleted 处理。
+                        Err(CoreError::Cancelled) => {
+                            turn.emit(
+                                CrewRole::Lead,
+                                EventPayload::TurnCompleted {
+                                    reason: "cancelled".to_owned(),
+                                },
+                            )
+                            .await?;
+                        }
+                        Err(e) => {
+                            turn.emit(
+                                CrewRole::System,
+                                EventPayload::Error {
+                                    message: e.to_string(),
+                                },
+                            )
+                            .await?;
+                        }
                     }
+                    // 轮次边界发一份预算快照（确定性：按完整历史重算）。
+                    // `should_compact()` 逼近阈值的消费（派发异地压缩）属 M2；
+                    // 现在先如实把预算播成事件，UI/用户可感知逼近上限。
+                    ledger.recount(&history);
+                    turn.emit(
+                        CrewRole::System,
+                        EventPayload::ContextBudget {
+                            used_tokens: ledger.used(),
+                            n_ctx: ledger.n_ctx(),
+                        },
+                    )
+                    .await?;
                 }
                 // 轮外收到审批/取消：无挂起动作，忽略。
                 Op::Approve { .. } | Op::Deny { .. } | Op::Cancel => {}
@@ -151,10 +200,15 @@ impl Agent {
         &self,
         turn: &mut Turn<'_>,
         history: &mut Vec<Message>,
+        read_paths: &mut HashSet<String>,
         op_rx: &mut mpsc::Receiver<Op>,
+        cancel: &CancellationToken,
     ) -> Result<(), CoreError> {
         for _ in 0..self.config.limits.max_iterations {
-            let (text, calls) = self.stream_once(turn, history).await?;
+            if cancel.is_cancelled() {
+                return Err(CoreError::Cancelled);
+            }
+            let (text, calls) = self.stream_once(turn, history, op_rx, cancel).await?;
             history.push(Message::assistant_calls(text, calls.clone()));
 
             if calls.is_empty() {
@@ -169,7 +223,8 @@ impl Agent {
             }
 
             for call in calls {
-                self.execute_call(turn, history, op_rx, &call).await?;
+                self.execute_call(turn, history, read_paths, op_rx, cancel, &call)
+                    .await?;
             }
         }
 
@@ -183,10 +238,16 @@ impl Agent {
     }
 
     /// 一次模型调用，收集文本与完整的工具调用，边收边发事件。
+    ///
+    /// 流式期间并发监听 `op_rx`：收到 [`Op::Cancel`] 立即触发取消令牌并中断
+    /// （本地推理慢，可中断性比云端更关键，§5.1 铁律）。轮内收到的其他 Op
+    /// （前端已在回合内禁用输入）忽略——与轮外忽略语义一致。
     async fn stream_once(
         &self,
         turn: &mut Turn<'_>,
         history: &[Message],
+        op_rx: &mut mpsc::Receiver<Op>,
+        cancel: &CancellationToken,
     ) -> Result<(String, Vec<ToolCall>), CoreError> {
         let req = CompletionRequest {
             tools: self.tools.specs(),
@@ -196,8 +257,26 @@ impl Agent {
         let mut text = String::new();
         let mut calls = Vec::new();
 
-        while let Some(chunk) = stream.next().await {
-            match chunk? {
+        loop {
+            let chunk = tokio::select! {
+                biased;
+                op = op_rx.recv() => {
+                    match op {
+                        // Cancel 或前端断开：触发令牌，中断本轮。
+                        Some(Op::Cancel) | None => {
+                            cancel.cancel();
+                            return Err(CoreError::Cancelled);
+                        }
+                        // 回合内的其他 Op 忽略（前端回合内禁用输入）。
+                        Some(_) => continue,
+                    }
+                }
+                chunk = stream.next() => match chunk {
+                    Some(c) => c?,
+                    None => break,
+                },
+            };
+            match chunk {
                 CompletionChunk::Text { delta } => {
                     text.push_str(&delta);
                     turn.emit(CrewRole::Lead, EventPayload::AgentText { text: delta })
@@ -229,14 +308,20 @@ impl Agent {
         Ok((text, calls))
     }
 
-    /// 单个工具调用：注册表校验 -> 权限门 -> 执行 -> 结果入历史。
+    /// 单个工具调用：注册表校验 -> read-before-edit -> 权限门 -> 执行 -> 结果入历史。
     async fn execute_call(
         &self,
         turn: &mut Turn<'_>,
         history: &mut Vec<Message>,
+        read_paths: &mut HashSet<String>,
         op_rx: &mut mpsc::Receiver<Op>,
+        cancel: &CancellationToken,
         call: &ToolCall,
     ) -> Result<(), CoreError> {
+        if cancel.is_cancelled() {
+            return Err(CoreError::Cancelled);
+        }
+
         let Some(tool) = self.tools.get(&call.name).cloned() else {
             let msg = format!(
                 "unknown tool '{}'. Available: {}",
@@ -251,8 +336,21 @@ impl Agent {
             return finish_call(turn, history, call, false, msg).await;
         };
 
+        // read-before-edit（原则：防盲改，docs/architecture.md §8）：编辑一个未读过的
+        // 文件直接挡回，喂给模型可操作的纠错提示，而不是让它盲改。
+        if call.name == EDIT_TOOL
+            && let Some(path) = call.arguments.get("path").and_then(|p| p.as_str())
+            && !read_paths.contains(&normalize_path(path))
+        {
+            let msg = format!(
+                "must read '{path}' before editing it. Call read(path=\"{path}\") first, \
+                 then retry the edit."
+            );
+            return finish_call(turn, history, call, false, msg).await;
+        }
+
         let risk = tool.risk(&call.arguments);
-        match self.permission.decide(risk) {
+        match self.permission.decide_tool(&call.name, risk) {
             Decision::Deny => {
                 return finish_call(turn, history, call, false, "denied by policy".to_owned())
                     .await;
@@ -278,15 +376,52 @@ impl Agent {
             Decision::Allow => {}
         }
 
-        // M1：每次调用一个全新的取消令牌。把 Op::Cancel 接到长任务的中断留待 M2。
+        // 取消令牌贯穿到子进程：用本轮令牌的子令牌，Op::Cancel 触发即杀 shell 子进程
+        // （§5.1 铁律）。工具执行期间并发监听 op_rx 的 Cancel。
         let ctx = ToolCtx {
             workdir: self.config.workdir.clone(),
             max_output_bytes: self.config.max_tool_output,
-            cancel: CancellationToken::new(),
+            cancel: cancel.child_token(),
         };
-        let out = tool.call(call.arguments.clone(), &ctx).await?;
+        let out = {
+            let call_fut = tool.call(call.arguments.clone(), &ctx);
+            tokio::pin!(call_fut);
+            loop {
+                tokio::select! {
+                    op = op_rx.recv() => {
+                        match op {
+                            // 触发令牌后不 drop future，而是继续 await 让工具观察到取消、
+                            // 优雅收尾（如 shell 杀子进程）。
+                            Some(Op::Cancel) | None => cancel.cancel(),
+                            Some(_) => {}
+                        }
+                    }
+                    res = &mut call_fut => break res?,
+                }
+            }
+        };
+
+        // read 成功后记账，供后续 edit 的 read-before-edit 校验。
+        if call.name == READ_TOOL
+            && out.ok
+            && let Some(path) = call.arguments.get("path").and_then(|p| p.as_str())
+        {
+            read_paths.insert(normalize_path(path));
+        }
+
         finish_call(turn, history, call, out.ok, out.content).await
     }
+}
+
+/// 归一化路径用于 read-before-edit 比对：纯字符串规整，不碰文件系统
+/// （core 零 IO + 确定性）。统一分隔符、去掉前导 `./`，让 `./a.rs` 与
+/// `a.rs`、`a\b.rs` 与 `a/b.rs` 视作同一文件。这是防盲改的启发式护栏，
+/// 真正的路径逃逸边界在工具层的 `resolve_within`。
+fn normalize_path(p: &str) -> String {
+    p.trim()
+        .replace('\\', "/")
+        .trim_start_matches("./")
+        .to_owned()
 }
 
 /// 把工具结果写进历史并发事件。

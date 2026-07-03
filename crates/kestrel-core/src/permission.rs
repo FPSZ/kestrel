@@ -19,20 +19,53 @@ pub enum ApprovalPolicy {
 }
 
 /// 权限引擎。
+///
+/// deny 优先（原则 5）：`deny_tools` 里的工具名有两道防线——
+/// 组装时由 [`crate::ToolSet::deny`] 预过滤出工具列表（模型看不到，省 schema
+/// token），运行时 [`decide_tool`] 再兜一层（防幻觉出被禁工具名）。
+///
+/// [`decide_tool`]: PermissionEngine::decide_tool
 #[derive(Debug, Default)]
 pub struct PermissionEngine {
     policy: ApprovalPolicy,
-    // TODO(M1): 全局 deny 规则表（从配置加载），用于工具列表预过滤。
+    /// 全局禁用的工具名（deny 优先，来自配置）。
+    deny_tools: Vec<String>,
 }
 
 impl PermissionEngine {
-    /// 以给定策略构建。
+    /// 以给定策略构建（无 deny 规则）。
     #[must_use]
     pub fn new(policy: ApprovalPolicy) -> Self {
-        Self { policy }
+        Self {
+            policy,
+            deny_tools: Vec::new(),
+        }
     }
 
-    /// 对一次工具调用做决策（deny 规则优先，其后按风险与策略分档）。
+    /// 以策略 + 全局 deny 工具名构建。
+    #[must_use]
+    pub fn with_deny(policy: ApprovalPolicy, deny_tools: Vec<String>) -> Self {
+        Self { policy, deny_tools }
+    }
+
+    /// 该工具是否被全局 deny 规则禁用。
+    #[must_use]
+    pub fn is_denied(&self, tool: &str) -> bool {
+        self.deny_tools.iter().any(|d| d == tool)
+    }
+
+    /// 对一次具名工具调用做决策：deny 优先，其后按风险与策略分档。
+    #[must_use]
+    pub fn decide_tool(&self, tool: &str, risk: RiskLevel) -> Decision {
+        if self.is_denied(tool) {
+            return Decision::Deny;
+        }
+        self.decide(risk)
+    }
+
+    /// 按风险与策略分档决策（不查 deny 名单，见 [`decide_tool`]）。
+    ///
+    /// [`decide_tool`]: PermissionEngine::decide_tool
     #[must_use]
     pub fn decide(&self, risk: RiskLevel) -> Decision {
         match (self.policy, risk) {
@@ -67,5 +100,20 @@ mod tests {
             let engine = PermissionEngine::new(policy);
             assert_eq!(engine.decide(RiskLevel::ReadOnly), Decision::Allow);
         }
+    }
+
+    #[test]
+    fn denied_tool_is_denied_regardless_of_risk() {
+        let engine = PermissionEngine::with_deny(ApprovalPolicy::Auto, vec!["shell".to_owned()]);
+        // 即便 Auto 会放行 Mutating，被 deny 的工具仍拒绝。
+        assert_eq!(
+            engine.decide_tool("shell", RiskLevel::Mutating),
+            Decision::Deny
+        );
+        // 未被 deny 的只读工具照常放行。
+        assert_eq!(
+            engine.decide_tool("read", RiskLevel::ReadOnly),
+            Decision::Allow
+        );
     }
 }

@@ -84,6 +84,17 @@ pub enum EventPayload {
         /// 结束原因（自然结束 / 迭代上限 / 预算耗尽 / 用户中断）。
         reason: String,
     },
+    /// 上下文预算快照（轮次边界发出，供前端画预算/KV 状态）。
+    ///
+    /// 语言中立 + 确定性（地基铁律：只存结构化数值，不存句子；
+    /// token 数由历史估算得来，不含时钟/随机）。`used_tokens` 为近似值
+    /// （字节级估算，非真实 tokenizer），前端应据实标注"近似"。
+    ContextBudget {
+        /// 已用 token 估算（近似）。
+        used_tokens: u32,
+        /// 后端上报的真实上下文长度（探测所得，见 `BackendCapabilities::n_ctx`）。
+        n_ctx: u32,
+    },
     /// 不可恢复错误（可恢复错误走 `ToolResult` 的 `ok: false` 喂回模型自纠错）。
     Error {
         /// 错误描述。

@@ -121,6 +121,7 @@ fn build_agent(script: Vec<Vec<CompletionChunk>>, store: MemStore) -> Agent {
             system_prompt: "test".to_owned(),
             workdir: std::env::temp_dir(),
             max_tool_output: 4096,
+            n_ctx: 8192,
             limits: TurnLimits::default(),
         },
     )
@@ -243,6 +244,7 @@ fn payloads_owned(payloads: &[EventPayload]) -> Vec<&'static str> {
             EventPayload::ApprovalRequired { .. } => "ApprovalRequired",
             EventPayload::ToolResult { .. } => "ToolResult",
             EventPayload::TurnCompleted { .. } => "TurnCompleted",
+            EventPayload::ContextBudget { .. } => "ContextBudget",
             EventPayload::Error { .. } => "Error",
         })
         .collect()
