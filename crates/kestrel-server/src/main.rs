@@ -52,28 +52,8 @@ async fn main() -> anyhow::Result<()> {
         .trim_start_matches(r"\\?\")
         .to_owned();
 
-    let backend = Arc::new(kestrel_backend::OpenAiCompatBackend::new(
-        config.backend.base_url.clone(),
-        config.backend.api_key.clone(),
-        config.backend.model.clone(),
-        config.backend.n_ctx,
-    ));
     let store = Arc::new(JsonlStore::new(config.sessions_dir.clone()));
-    let tools = kestrel_tools::builtin();
-    let permission = PermissionEngine::new(parse_policy(&config.approval_policy));
-
-    let agent = Agent::new(
-        backend,
-        tools,
-        store.clone(),
-        permission,
-        AgentConfig {
-            system_prompt: SYSTEM_PROMPT.to_owned(),
-            workdir: workdir.clone(),
-            max_tool_output: 8_192,
-            limits: TurnLimits::default(),
-        },
-    );
+    let agent = assemble_agent(&config, workdir.clone(), store.clone()).await;
 
     let (op_tx, op_rx) = mpsc::channel::<Op>(32);
     let (event_tx, mut event_rx) = mpsc::channel::<Event>(256);
@@ -127,6 +107,58 @@ async fn main() -> anyhow::Result<()> {
         .context("serve")?;
 
     Ok(())
+}
+
+/// 组装 agent：选后端 -> 探测真实 n_ctx -> deny 预过滤工具 -> 建权限门。
+/// 与 `kestrel-cli` 的组装逻辑同构（core 一行不改，两个前端各自装配）。
+async fn assemble_agent(config: &Config, workdir: PathBuf, store: Arc<JsonlStore>) -> Agent {
+    let backend = kestrel_backend::build(
+        &config.backend.kind,
+        config.backend.base_url.clone(),
+        config.backend.api_key.clone(),
+        config.backend.model.clone(),
+        config.backend.n_ctx,
+    );
+    // 探测真实上下文长度喂给 context ledger（失败优雅回退配置值）。
+    let n_ctx = match backend.probe().await {
+        Ok(caps) => {
+            tracing::info!(
+                n_ctx = caps.n_ctx,
+                native_tools = caps.native_tool_calls,
+                "probed backend"
+            );
+            caps.n_ctx
+        }
+        Err(e) => {
+            tracing::warn!(
+                "probe failed ({e}); using configured n_ctx {}",
+                config.backend.n_ctx
+            );
+            config.backend.n_ctx
+        }
+    };
+    let mut tools = kestrel_tools::builtin();
+    let denied = tools.deny(&config.deny_tools);
+    if denied > 0 {
+        tracing::info!(denied, "deny-listed tools removed from tool set");
+    }
+    let permission = PermissionEngine::with_deny(
+        parse_policy(&config.approval_policy),
+        config.deny_tools.clone(),
+    );
+    Agent::new(
+        backend,
+        tools,
+        store,
+        permission,
+        AgentConfig {
+            system_prompt: SYSTEM_PROMPT.to_owned(),
+            workdir,
+            max_tool_output: 8_192,
+            n_ctx,
+            limits: TurnLimits::default(),
+        },
+    )
 }
 
 async fn shutdown_signal() {

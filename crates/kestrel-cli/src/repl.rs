@@ -74,6 +74,13 @@ async fn drain_turn(
                 eprintln!("\n[错误] {message}");
                 return Ok(true);
             }
+            // 预算快照在轮次边界发出：CLI 用一行低调提示，逼近上限才有存在感。
+            EventPayload::ContextBudget { used_tokens, n_ctx } => {
+                if n_ctx > 0 && u64::from(used_tokens) * 100 >= u64::from(n_ctx) * 75 {
+                    let pct = u64::from(used_tokens) * 100 / u64::from(n_ctx);
+                    println!("  [context] {used_tokens}/{n_ctx} tok (~{pct}%)");
+                }
+            }
             EventPayload::UserInput { .. } => {}
         }
     }

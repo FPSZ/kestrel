@@ -13,6 +13,7 @@ export type EventPayload =
   | { type: 'approval_required'; call_id: string; risk: RiskLevel; review: string | null }
   | { type: 'tool_result'; call_id: string; ok: boolean; content: string }
   | { type: 'turn_completed'; reason: string }
+  | { type: 'context_budget'; used_tokens: number; n_ctx: number }
   | { type: 'error'; message: string }
 
 export interface KestrelEvent {

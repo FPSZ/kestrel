@@ -17,6 +17,9 @@ pub struct Config {
     pub backend: BackendConfig,
     /// 确认策略：`on-request` | `auto` | `strict`。
     pub approval_policy: String,
+    /// 全局禁用的工具名（deny 优先，组装时从工具列表预过滤——见权限门 §5.3）。
+    /// 默认空。例：`deny_tools = ["shell"]` 起一个纯只读、绝不执行命令的 agent。
+    pub deny_tools: Vec<String>,
     /// agent 工作目录（工具的文件操作以此为界）。默认当前目录。
     pub workdir: PathBuf,
     /// 会话事件日志存放目录。
@@ -27,13 +30,16 @@ pub struct Config {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct BackendConfig {
+    /// 后端类型：`openai`（兜底，默认）| `llamacpp` | `lmstudio`。
+    /// 选 llamacpp/lmstudio 可在启动时探测真实上下文长度（覆盖 `n_ctx`）。
+    pub kind: String,
     /// OpenAI 兼容端点基址（llama-server 或 LM Studio），不含 `/v1`。
     pub base_url: String,
     /// API key（本地后端通常留空）。
     pub api_key: String,
     /// 模型名（llama-server 可任意；LM Studio 需匹配已加载模型）。
     pub model: String,
-    /// 上下文长度。M1 取此配置值；后续由能力探针实测覆盖。
+    /// 上下文长度兜底值。探针（llamacpp/lmstudio）成功时以实测值覆盖。
     pub n_ctx: u32,
 }
 
@@ -42,6 +48,7 @@ impl Default for Config {
         Self {
             backend: BackendConfig::default(),
             approval_policy: "on-request".to_owned(),
+            deny_tools: Vec::new(),
             workdir: PathBuf::from("."),
             sessions_dir: PathBuf::from("sessions"),
         }
@@ -51,6 +58,7 @@ impl Default for Config {
 impl Default for BackendConfig {
     fn default() -> Self {
         Self {
+            kind: "openai".to_owned(),
             base_url: "http://127.0.0.1:8080".to_owned(),
             api_key: String::new(),
             model: "local".to_owned(),

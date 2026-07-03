@@ -46,15 +46,41 @@ async fn main() -> anyhow::Result<()> {
         .trim_start_matches(r"\\?\")
         .to_owned();
 
-    let backend = Arc::new(kestrel_backend::OpenAiCompatBackend::new(
+    let backend = kestrel_backend::build(
+        &config.backend.kind,
         config.backend.base_url.clone(),
         config.backend.api_key.clone(),
         config.backend.model.clone(),
         config.backend.n_ctx,
-    ));
+    );
+    // 探测真实上下文长度喂给 context ledger（失败优雅回退配置值）。
+    let n_ctx = match backend.probe().await {
+        Ok(caps) => {
+            tracing::info!(
+                n_ctx = caps.n_ctx,
+                native_tools = caps.native_tool_calls,
+                "probed backend"
+            );
+            caps.n_ctx
+        }
+        Err(e) => {
+            tracing::warn!(
+                "probe failed ({e}); using configured n_ctx {}",
+                config.backend.n_ctx
+            );
+            config.backend.n_ctx
+        }
+    };
     let store = Arc::new(JsonlStore::new(config.sessions_dir.clone()));
-    let tools = kestrel_tools::builtin();
-    let permission = PermissionEngine::new(parse_policy(&config.approval_policy));
+    let mut tools = kestrel_tools::builtin();
+    let denied = tools.deny(&config.deny_tools);
+    if denied > 0 {
+        tracing::info!(denied, "deny-listed tools removed from tool set");
+    }
+    let permission = PermissionEngine::with_deny(
+        parse_policy(&config.approval_policy),
+        config.deny_tools.clone(),
+    );
 
     let agent = Agent::new(
         backend,
@@ -65,6 +91,7 @@ async fn main() -> anyhow::Result<()> {
             system_prompt: SYSTEM_PROMPT.to_owned(),
             workdir: workdir.clone(),
             max_tool_output: 8_192,
+            n_ctx,
             limits: TurnLimits::default(),
         },
     );
