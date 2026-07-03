@@ -71,7 +71,8 @@ pub struct Agent {
 /// 避免每个方法重复传参。虽名为 Turn，实为整个会话生命周期存活（在 `run` 里
 /// 创建一次、跨轮复用），故 `seq` 与 `read_paths` 都随会话累积。
 struct Turn<'a> {
-    session: &'a SessionId,
+    /// 当前会话（拥有所有权：`Op::NewSession` 会就地轮换它，seq 归零）。
+    session: SessionId,
     store: &'a dyn Store,
     event_tx: &'a mpsc::Sender<Event>,
     seq: u64,
@@ -88,7 +89,7 @@ impl Turn<'_> {
             payload,
         };
         self.seq += 1;
-        self.store.append(self.session, &event).await?;
+        self.store.append(&self.session, &event).await?;
         // 前端已断开不是致命错误：日志已落盘，静默停止推送。
         let _ = self.event_tx.send(event).await;
         Ok(())
@@ -126,7 +127,7 @@ impl Agent {
         let mut history = vec![Message::text(Role::System, &self.config.system_prompt)];
         let mut ledger = ContextLedger::new(self.config.n_ctx);
         let mut turn = Turn {
-            session: &session,
+            session,
             store: self.store.as_ref(),
             event_tx: &event_tx,
             seq: 0,
@@ -184,6 +185,15 @@ impl Agent {
                         },
                     )
                     .await?;
+                }
+                // 新建对话：清空历史与已读集、轮换会话 id、seq 归零。新会话日志从 0 起，
+                // 前端会重连事件流并重置折叠状态（旧 seq 高于新 0 会被去重误丢，故必须重置）。
+                Op::NewSession { id } => {
+                    history = vec![Message::text(Role::System, &self.config.system_prompt)];
+                    ledger.recount(&history);
+                    turn.session = SessionId(id);
+                    turn.seq = 0;
+                    turn.read_paths.clear();
                 }
                 // 轮外收到审批/取消：无挂起动作，忽略。
                 Op::Approve { .. } | Op::Deny { .. } | Op::Cancel => {}

@@ -9,7 +9,8 @@ mod http;
 
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::atomic::AtomicU64;
+use std::sync::{Arc, RwLock};
 
 use anyhow::Context;
 use kestrel_core::{Agent, AgentConfig, PermissionEngine, TurnLimits};
@@ -92,7 +93,8 @@ async fn main() -> anyhow::Result<()> {
         op_tx,
         events: events_bcast,
         store,
-        session,
+        session: Arc::new(RwLock::new(session)),
+        session_seq: Arc::new(AtomicU64::new(1)),
         model: engine.model.clone(),
         base_url: engine.base_url.clone(),
         workdir: workdir_display.clone(),

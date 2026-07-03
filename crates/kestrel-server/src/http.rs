@@ -10,14 +10,15 @@
 
 use std::convert::Infallible;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::response::sse::{Event as SseEvent, KeepAlive, Sse};
-use axum::routing::{get, post};
+use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use futures::stream::{Stream, StreamExt};
 use kestrel_core::ports::Store;
@@ -36,8 +37,10 @@ pub struct AppState {
     pub events: broadcast::Sender<Event>,
     /// 事件日志存储（回放快照 / 历史会话）。
     pub store: Arc<JsonlStore>,
-    /// 当前活动会话。
-    pub session: SessionId,
+    /// 当前活动会话（内部可变：`POST /api/sessions` 新建对话时就地轮换）。
+    pub session: Arc<RwLock<SessionId>>,
+    /// 新会话 id 计数器（server 分配，避免 core 依赖时钟/随机）。
+    pub session_seq: Arc<AtomicU64>,
     /// 后端模型名（状态展示）。
     pub model: String,
     /// 后端基址（状态展示）。
@@ -54,7 +57,8 @@ pub fn router(state: AppState) -> Router {
         .route("/health", get(health))
         .route("/events", get(events))
         .route("/ops", post(ops))
-        .route("/sessions", get(list_sessions))
+        .route("/sessions", get(list_sessions).post(new_session))
+        .route("/sessions/{id}", delete(delete_session))
         .route("/sessions/{id}/events", get(session_events))
         .route("/launcher/scan", get(launcher_scan))
         .with_state(state);
@@ -67,9 +71,10 @@ pub fn router(state: AppState) -> Router {
 
 #[allow(clippy::unused_async)] // axum handler 必须是 async；本处理器无需 await
 async fn health(State(s): State<AppState>) -> impl IntoResponse {
+    let session = s.session.read().unwrap().0.clone();
     Json(serde_json::json!({
         "ok": true,
-        "session": s.session.0,
+        "session": session,
         "model": s.model,
         "base_url": s.base_url,
         "workdir": s.workdir,
@@ -89,7 +94,9 @@ async fn events(
     State(s): State<AppState>,
 ) -> Sse<impl Stream<Item = Result<SseEvent, Infallible>>> {
     let rx = s.events.subscribe();
-    let snapshot = s.store.replay(&s.session).await.unwrap_or_default();
+    // 取当前会话快照（克隆出锁再 await，不跨 await 持锁）。
+    let session = s.session.read().unwrap().clone();
+    let snapshot = s.store.replay(&session).await.unwrap_or_default();
     let last_seq = snapshot.last().map(|e| e.seq);
 
     let snapshot_stream = futures::stream::iter(snapshot);
@@ -128,6 +135,46 @@ async fn list_sessions(State(s): State<AppState>) -> impl IntoResponse {
 async fn session_events(State(s): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
     match s.store.replay(&SessionId(id)).await {
         Ok(events) => Json(events).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+/// 新建对话（`POST /api/sessions`）：server 分配新会话 id、就地轮换当前会话，
+/// 并通知 core 清空历史。前端收到 id 后应重连事件流（重置折叠状态）。
+async fn new_session(State(s): State<AppState>) -> impl IntoResponse {
+    let n = s.session_seq.fetch_add(1, Ordering::SeqCst);
+    let id = format!("web-{}-{n}", std::process::id());
+    {
+        // 先切 AppState 的当前会话，再发 Op；不跨 await 持锁。
+        *s.session.write().unwrap() = SessionId(id.clone());
+    }
+    if s.op_tx
+        .send(Op::NewSession { id: id.clone() })
+        .await
+        .is_err()
+    {
+        return (StatusCode::SERVICE_UNAVAILABLE, "agent unavailable").into_response();
+    }
+    Json(serde_json::json!({ "id": id })).into_response()
+}
+
+/// 删除一个历史会话的日志文件（`DELETE /api/sessions/{id}`）。
+/// 拒删当前活动会话；id 仅允许 `[A-Za-z0-9_-]` 防路径逃逸（真删本地文件，前端两次确认）。
+async fn delete_session(State(s): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
+    if id.is_empty()
+        || !id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
+        return (StatusCode::BAD_REQUEST, "invalid session id").into_response();
+    }
+    if id == s.session.read().unwrap().0 {
+        return (StatusCode::CONFLICT, "cannot delete the active session").into_response();
+    }
+    let path = s.sessions_dir.join(format!("{id}.jsonl"));
+    match tokio::fs::remove_file(&path).await {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => StatusCode::NOT_FOUND.into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }

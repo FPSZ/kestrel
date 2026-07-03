@@ -52,6 +52,13 @@ pub enum Op {
     },
     /// 中断当前轮（取消信号贯穿到子进程）。
     Cancel,
+    /// 开启一个全新会话：清空历史、轮换会话 id、seq 归零（前端"新建对话"）。
+    ///
+    /// id 由 server 分配（core 不含时钟/随机，保持确定性）；新会话日志从 seq 0 起。
+    NewSession {
+        /// server 分配的新会话标识。
+        id: String,
+    },
 }
 
 /// `UserInput.think` 的默认值：默认开思考（与旧行为一致）。
