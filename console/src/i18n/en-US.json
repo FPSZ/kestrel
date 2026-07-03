@@ -43,6 +43,16 @@
   "status.ok": "ok",
   "status.error": "error",
   "status.needsApproval": "needs approval",
+  "status.connected": "connected",
+  "status.connecting": "connecting",
+  "status.offline": "offline",
+
+  "settings.title": "Settings",
+  "settings.subtitle": "Read-only for now. Edit kestrel.toml and restart kestrel-server to change these.",
+  "settings.model": "Model",
+  "settings.backend": "Backend",
+  "settings.workdir": "Working directory",
+  "settings.session": "Session",
 
   "risk.read_only": "read-only",
   "risk.mutating": "mutating",
@@ -66,6 +76,8 @@
   "nav.delete": "Delete from disk",
   "nav.confirmDelete": "Delete?",
   "nav.localMachine": "local machine",
+  "nav.expandSidebar": "Expand sidebar",
+  "nav.collapseSidebar": "Collapse sidebar",
 
   "session.loading": "Loading conversation…",
   "session.empty": "This conversation has no events.",

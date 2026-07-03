@@ -1,5 +1,6 @@
 import { useHealth } from '@/lib/use-health'
 import { cn } from '@/lib/cn'
+import { t } from '@/i18n'
 
 /**
  * Read-only settings. Surfaces the active backend/model/workdir from
@@ -8,19 +9,17 @@ import { cn } from '@/lib/cn'
 export function SettingsView() {
   const health = useHealth()
   const rows: [string, string | undefined][] = [
-    ['Model', health?.model],
-    ['Backend', health?.base_url],
-    ['Working directory', health?.workdir],
-    ['Session', health?.session],
+    [t('settings.model'), health?.model],
+    [t('settings.backend'), health?.base_url],
+    [t('settings.workdir'), health?.workdir],
+    [t('settings.session'), health?.session],
   ]
 
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-2xl px-6 py-8">
-        <h2 className="mb-1 text-[16px] font-semibold tracking-[-0.01em]">Settings</h2>
-        <p className="mb-6 text-[13px] text-ink-3">
-          Read-only for now. Edit kestrel.toml and restart kestrel-server to change these.
-        </p>
+        <h2 className="mb-1 text-[16px] font-semibold tracking-[-0.01em]">{t('settings.title')}</h2>
+        <p className="mb-6 text-[13px] text-ink-3">{t('settings.subtitle')}</p>
         <div className="overflow-hidden rounded-lg border border-line">
           {rows.map(([k, v], i) => (
             <div

@@ -1,5 +1,6 @@
 import { PanelLeft, Circle } from 'lucide-react'
 import type { StreamStatus } from '@/lib/client'
+import { t } from '@/i18n'
 
 /**
  * Full-width top bar. Transparent - it sits on the shared frosted shell,
@@ -21,14 +22,19 @@ export function Topbar({
 }) {
   const dot =
     status === 'open' ? 'fill-ok text-ok' : status === 'connecting' ? 'fill-warn text-warn' : 'fill-crit text-crit'
-  const label = status === 'open' ? (model ?? 'connected') : status === 'connecting' ? 'connecting' : 'offline'
+  const label =
+    status === 'open'
+      ? (model ?? t('status.connected'))
+      : status === 'connecting'
+        ? t('status.connecting')
+        : t('status.offline')
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-3 px-3">
       <button
         type="button"
         onClick={onToggle}
-        aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        aria-label={collapsed ? t('nav.expandSidebar') : t('nav.collapseSidebar')}
         className="focus-ring grid h-8 w-8 place-items-center rounded-md text-ink-3 transition-colors hover:bg-surface hover:text-ink"
       >
         <PanelLeft className="h-[18px] w-[18px]" strokeWidth={1.8} />

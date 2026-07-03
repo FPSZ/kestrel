@@ -43,6 +43,16 @@
   "status.ok": "完成",
   "status.error": "出错",
   "status.needsApproval": "待审批",
+  "status.connected": "已连接",
+  "status.connecting": "连接中",
+  "status.offline": "离线",
+
+  "settings.title": "设置",
+  "settings.subtitle": "目前只读。改 kestrel.toml 并重启 kestrel-server 生效。",
+  "settings.model": "模型",
+  "settings.backend": "后端",
+  "settings.workdir": "工作目录",
+  "settings.session": "会话",
 
   "risk.read_only": "只读",
   "risk.mutating": "可变写入",
@@ -66,6 +76,8 @@
   "nav.delete": "从本地删除",
   "nav.confirmDelete": "确认删除？",
   "nav.localMachine": "本机",
+  "nav.expandSidebar": "展开侧栏",
+  "nav.collapseSidebar": "收起侧栏",
 
   "session.loading": "加载对话中…",
   "session.empty": "这个对话没有事件。",
