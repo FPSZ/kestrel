@@ -27,6 +27,7 @@
 | WebUI 个人版 | kestrel-server(SSE+Op) + console 扁平深色壳 | 独奏可视化 | `[x]` 已交付 |
 | **地基（G）· 横切约定** | i18n + 设计令牌 + 事件日志前向兼容 + core 确定性 + 密钥 + 错误分类 | 与机组无关 | `[~]` **先于 M2** |
 | **创新种子小里程碑** | 可靠性地基 + Glass Engine 起步 + 自我进化捕获起步 | 独奏增强 | `[?]` **待拍板（见文末岔路）** |
+| **模型启动器（L）** | 自启 llama.cpp + 委托已有宿主 + 纯连接回退 + 参数 UI（ADR-0010） | on-ramp | `[ ]` 近期起步，全量骑 M2-M4 |
 | **M2 剧场核心** | 模型池 + 作业路由 + 副手异地压缩 + actor 事件 + 机组账本 | 主脑+副手 | `[ ]` **下一个承诺里程碑** |
 | M3 全机组 | 书记(记忆检索) + 审校(高危复核) + 能力探针 + 回放测试进 CI | 全机组 | `[ ]` 待办 |
 | M4 扩展 | browser/process 工具 + 状态树分支 + MCP 桥 + 投机代理 + Loadout + 轮内取消 | +时间旅行/秒回 | `[ ]` 待办 |
@@ -54,8 +55,41 @@ CI 硬门槛(fmt / clippy -D warnings / test / cargo-deny)全绿。
 流式对话(markdown / 工具卡 / 内联审批 / 错误红卡)、会话回放、只读设置、顶栏连接状态灯、Vite:7823。
 端到端已验证。T0-T2 逐条清单见本文件 git 历史（commit `16e7cc8`/`8c70d94`/`f6c7785`/`43f06f3`）。
 
-遗留一条并入 M4：`[!]` **轮内取消（Cancel 按钮）** —— core 目前只在审批点读 `Op::Cancel`
-（agent.rs 明确把轮内取消留到 M4）。现在放按钮是假控件，不做。**解冻条件**：M4 core 支持轮内取消。
+遗留一条已在"地基修复"轮解冻：`[x]` **轮内取消** —— core 现在在流式与工具执行期间
+并发监听 `Op::Cancel`，取消令牌贯穿到 shell 子进程；从 M4 提前落地（见下方"地基修复"段）。
+前端 Stop 按钮改为真控件（后端已就绪），console 接线待办。
+
+---
+
+## [x] 地基修复 —— 让"文档写成铁律、代码还是 TODO"的地基名副其实
+
+审查发现三处 architecture.md 当铁律宣传、代码里却是占位的地基空缺，先于新特性补齐；
+顺带把两个近期可靠性/后端项做实。全程 core 一行不改设计、不新增 ADR（都是把已 Accepted
+的设计落地，非新方向）。fmt/clippy(-D warnings)/test(35 通过)/deny 全绿。
+
+- [x] F1  Context Ledger 接进主循环：`AgentConfig.n_ctx` 由后端 `probe()` 实测喂入；
+      轮次边界按完整历史确定性重算 token（近似 bytes/4），发 `Event::ContextBudget`
+      （结构化数值、语言中立、无时钟/随机——合地基铁律 #2/#5）。压缩派发仍属 M2。
+- [x] F2  read-before-edit 强制：主循环层维护会话级已读文件集（纯字符串、零 IO、确定性），
+      编辑未读文件直接挡回并喂可操作纠错提示（architecture.md §8 从注释变约束）。
+- [x] F3  deny 优先预过滤：`config.deny_tools` 组装时经 `ToolSet::deny` 从工具列表删除
+      （模型看不见、省 schema token），`PermissionEngine::decide_tool` 运行时兜底 deny。
+- [x] F4  轮内取消：`stream_once` / 工具执行期间 `select!` 监听 `Op::Cancel`，触发轮级
+      取消令牌（贯穿 shell 子进程），收尾为 `TurnCompleted{reason:"cancelled"}`。从 M4 提前。
+- [x] F5  llama.cpp / LM Studio 专属后端：组合复用 OpenAI 兼容流式，`probe()` 分别打
+      `/props`、`/api/v0/models` 读真实 `n_ctx`（失败优雅回退配置值）；`backend.kind` 选择，
+      `kestrel_backend::build()` 工厂。slot save/restore 仍 no-op（影子槽属 M2 高风险 spike）。
+- [x] F6  search 工具 regex + glob：`pattern`（默认字面，`regex:true` 转正则）+ 可选 `glob`
+      文件名过滤（零依赖极简匹配器），向后兼容；补 grep+glob 合一（原 architecture.md §8 遗留）。
+- [x] F7  回放 harness 种子：`tests/replays/auth_refactor.jsonl` fixture + `kestrel-store`
+      回放测试，钉死"改 Event 形状即破坏历史/fixture"这条地基铁律。测试从 12 涨到 35。
+
+**明确暂缓（各需先立 ADR / 属里程碑级，非本轮范围）**：
+
+- `[?]` **新会话端点** —— 与 ADR-0007"单人单会话"冲突；会话生命周期需先立 ADR（属朋友版方向）。
+- `[?]` **grammar 约束采样（GBNF/json_schema）** —— 即创新种子 S1，明文要求先立 ADR + 定方向。
+- `[ ]` **M2 机组 / 副手异地压缩** —— 承诺里程碑（16 子任务，含高风险影子槽 spike），
+  需真加载第二个模型，非一次清扫可负责任完成。JobKind 路由已就绪，池子未建。
 
 ---
 
@@ -72,7 +106,7 @@ CI 硬门槛(fmt / clippy -D warnings / test / cargo-deny)全绿。
 - [ ] G6  kestrel-cli：用户可见 TUI/REPL 文本走 catalog（tracing 开发日志保持英文）
 - [ ] G7  console：设计令牌审计——组件里硬编码颜色/间距/字号挪进 `@theme` 令牌
 - [ ] G8  CI：加 i18n / 硬编码门禁（console 用 ESLint `no-literal-string` 类规则）
-- [ ] G9  ADR-0010 + 实现：事件日志 `schema_version` 信封 + 容忍解析（只增不改字段）
+- [ ] G9  ADR-0011 + 实现：事件日志 `schema_version` 信封 + 容忍解析（只增不改字段）
 - [ ] G10 密钥：`SecretString` 型（不 Debug 打印）+ 审计日志/事件/UI/提交无泄漏
 - [ ] G11 locale 格式化（日期/数字 Intl/Rust）+ 时间戳统一 UTC 存
 - [x] G12 ADR-0009：存储位置定为 OS 标准目录（`.kestrel/` opt-in + 版本化迁移）
@@ -80,6 +114,24 @@ CI 硬门槛(fmt / clippy -D warnings / test / cargo-deny)全绿。
 - [ ] G14 fmt/clippy/test/deny + console build 全绿；提交并推送地基段
 
 Tier 2 其余（配置前向兼容 / a11y 基线 / 路径沙箱 / API 版本化 / 稳定 ID）已给默认，无异议即按默认随各里程碑落地。目前无待拍板项。
+
+## [ ] 模型启动器（L）—— 近期 on-ramp（ADR-0010）
+
+把模型**作为 agent 的一部分**来启动，消灭"手动起服务器 + 忘 --jinja + token 鉴权"的摩擦。
+薄监督器、不做第二个 Ollama：只启动/监督 llama.cpp + 委托已有宿主 + 纯连接回退。差异化 =
+通用宿主结构上做不到的 agent 感知启动（强制 --jinja、探针、KV/机组/Loadout 接线）。
+
+- [x] L1  ADR-0010：模型启动器决策（定位/三种来源/安全边界/被否决方案）
+- [ ] L2  端口契约：`launch(spec) -> Handle` / `health` / `stop`（先定契约再写实现）
+- [ ] L3  可行性 spike：自启 llama.cpp（spawn `--jinja` + 健康轮询就绪）+ **纯连接回退**（现状零启动）
+- [ ] L4  委托已有宿主：检测 `lms` / `ollama` / 已在跑的 server，调用或直连
+- [ ] L5  模型注册表：扫本地 GGUF 目录（如 `D:\AI\local\models`）出可选列表；不做下载/registry
+- [ ] L6  参数调节 UI：ctx / 温度 / top_p / GPU 层 / flash-attn / MTP / 投机 → 控件（兑现"方便调每个参数"）
+- [ ] L7  安全：引擎/模型白名单 + spawn/kill 走权限门可审计 + 进程树原子杀（Process Bloodline 咬合）
+- [ ] L8  接能力探针（§5.4，骑 M3）：首启微基准 → 按模型@量化选协议/编辑格式，存 profile
+- [ ] L9  接模型池/机组（骑 M2）与 Loadout（ADR-0006）：一份清单声明 模型@量化+参数+工具+权限，一条命令落地
+
+L2/L3 近期即可起步（与地基/创新并行）；L8/L9 骑 M2/M3。先出 spike 验证自启+回退，再逐步接探针/池/Loadout。
 
 ## [ ] M2 剧场核心 —— 下一个承诺里程碑（architecture.md §6）
 
@@ -146,7 +198,8 @@ Tier 2 其余（配置前向兼容 / a11y 基线 / 路径沙箱 / API 版本化 
 - [ ] M4.2  状态树分支：slot save/restore 支撑会话分叉/回溯，是 Glass Engine 中期 Fork/Scrubber 的底座
 - [ ] M4.3  投机代理（ADR-0004）：空闲算力预计算 2-3 个未来分支，命中即秒回——成本反转的落地
 - [ ] M4.4  Loadout 装备编组（ADR-0006）：声明式清单 + 成本感知编译器（实时算 token 账、超预算即拒）+ 向导；权限永不随导入继承
-- [ ] M4.5  轮内取消：core 支持 turn 中途取消（解冻 WebUI 那个暂缓的 Cancel 按钮）
+- [x] M4.5  轮内取消：core 支持 turn 中途取消（已在"地基修复"轮提前落地，见上文 F4；
+      前端 Stop 按钮后端已就绪，console 接线待办）
 - [ ] M4.6  MCP 外接桥（v2 外接，内置工具仍走原生 trait）
 - [ ] M4.7  fmt/clippy/test/deny 全绿；提交并推送 M4
 
@@ -212,5 +265,8 @@ Tier 2 其余（配置前向兼容 / a11y 基线 / 路径沙箱 / API 版本化 
 - `8c70d94` T1：会话回放 + 只读 Settings + 抽出共享 Conversation 组件
 - `f6c7785` innovation-brainstorm.md（4 视角综合）+ 看板进度
 - `43f06f3` T2：助手 markdown 渲染 + 输入框自增高（Cancel 暂缓，并入 M4.5）
+- 地基修复：Ledger 接线 + ContextBudget 事件 + probe 真实 n_ctx / read-before-edit 强制 /
+  deny 预过滤 / 轮内取消（提前自 M4.5）/ llamacpp+lmstudio 专属后端 / search regex+glob /
+  回放 harness 种子 fixture。测试 12→35，fmt+clippy+test+deny 全绿（详见上文"地基修复"段）
 - `401a0fa` docs: 把在途文档收进 docs/planning/
 - 本次：看板从"WebUI 单里程碑"升级为"项目级执行看板"，覆盖 M1→朋友版全路线图 + 待拍板创新种子区
