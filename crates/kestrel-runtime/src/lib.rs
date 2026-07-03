@@ -32,6 +32,7 @@
 mod detect;
 mod discover;
 mod error;
+mod models;
 mod spec;
 mod supervisor;
 
@@ -40,5 +41,6 @@ pub use discover::{
     BinaryCandidate, RunningEngine, ScanResult, discover_binaries, discover_running, scan,
 };
 pub use error::RuntimeError;
+pub use models::{ModelFile, default_models_dir, discover_models};
 pub use spec::{EngineSource, LaunchSpec};
 pub use supervisor::{EngineHandle, launch};

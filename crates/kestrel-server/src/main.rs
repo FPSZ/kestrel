@@ -6,6 +6,7 @@
 //! core 一行不改：这里复用 `kestrel-cli` 相同的 `Agent::run` 契约。
 
 mod http;
+mod launcher;
 
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
@@ -101,7 +102,8 @@ async fn main() -> anyhow::Result<()> {
         sessions_dir,
     };
 
-    let app = http::router(state);
+    // 模型启动器路由自带状态，一行 merge 进来（挂 /api/launcher/*，不改 http.rs）。
+    let app = http::router(state).merge(launcher::router());
     let addr: SocketAddr = BIND_ADDR.parse().context("parse bind addr")?;
     let listener = tokio::net::TcpListener::bind(addr)
         .await
