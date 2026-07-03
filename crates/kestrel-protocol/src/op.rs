@@ -13,6 +13,10 @@ pub enum Op {
     UserInput {
         /// 输入文本。
         text: String,
+        /// 是否启用思考通道（Qwen3 等推理模型的 enable_thinking）。
+        /// 前端可省略，默认开——由 UI 的思考开关控制。
+        #[serde(default = "default_think")]
+        think: bool,
     },
     /// 批准挂起的风险动作。
     Approve {
@@ -28,4 +32,9 @@ pub enum Op {
     },
     /// 中断当前轮（取消信号贯穿到子进程）。
     Cancel,
+}
+
+/// `UserInput.think` 的默认值：默认开思考（与旧行为一致）。
+fn default_think() -> bool {
+    true
 }

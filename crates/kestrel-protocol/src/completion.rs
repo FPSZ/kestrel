@@ -15,6 +15,8 @@ pub struct CompletionRequest {
     pub tools: Vec<ToolSpec>,
     /// 对话消息（含 system 头，append-only）。
     pub messages: Vec<Message>,
+    /// 是否启用思考通道（enable_thinking）。由本轮用户输入的开关决定。
+    pub think: bool,
 }
 
 /// 流式补全的增量。
@@ -24,6 +26,11 @@ pub enum CompletionChunk {
     /// 文本增量。
     Text {
         /// 增量文本。
+        delta: String,
+    },
+    /// 思考/推理增量（如 Qwen3 的 `reasoning_content`，与正文 Text 分开的通道）。
+    Reasoning {
+        /// 增量思考文本。
         delta: String,
     },
     /// 完整的工具调用（backend 负责把流式分片拼装成完整调用再上抛）。

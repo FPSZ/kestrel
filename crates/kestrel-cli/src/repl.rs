@@ -27,7 +27,7 @@ pub async fn run(
             break;
         }
 
-        if op_tx.send(Op::UserInput { text: line }).await.is_err() {
+        if op_tx.send(Op::UserInput { text: line, think: true }).await.is_err() {
             break; // agent 已退出
         }
 
@@ -82,6 +82,10 @@ async fn drain_turn(
                 }
             }
             EventPayload::UserInput { .. } => {}
+            // 思考增量：WebUI 折叠展示；CLI 暂不打印，避免刷屏。
+            EventPayload::AgentReasoning { .. } => {}
+            // 审批裁决：CLI 内联问答已即时反馈，无需额外打印。
+            EventPayload::ApprovalResolved { .. } => {}
         }
     }
     Ok(false)

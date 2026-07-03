@@ -52,6 +52,14 @@ pub enum EventPayload {
         /// 文本增量。
         text: String,
     },
+    /// 模型的思考/推理增量（流式，与正文 `AgentText` 分开的通道）。
+    ///
+    /// 前端默认折叠展示（`thinking...`，可展开）。语言中立：只搬运模型产出的
+    /// 结构化增量，不含时钟/随机。
+    AgentReasoning {
+        /// 思考文本增量。
+        text: String,
+    },
     /// 模型请求调用工具。
     ToolCallRequested {
         /// 本轮内的调用标识。
@@ -69,6 +77,18 @@ pub enum EventPayload {
         risk: crate::risk::RiskLevel,
         /// 审校模型的第二意见（未加载审校时为 None）。
         review: Option<String>,
+    },
+    /// 用户对挂起风险动作的裁决落账（批准/拒绝）。
+    ///
+    /// 权限门是铁律：审批决定必须成为事件日志的一部分，否则折叠状态只剩
+    /// `ApprovalRequired`——重连/切页/回放会把"已批准、正在执行"错误还原成
+    /// "重新弹出审批"。批准后据此把工具卡从 `pending_approval` 翻到 `running`，
+    /// 长命令执行期间也有真实反馈而非永久"审批中"。语言中立：只存布尔。
+    ApprovalResolved {
+        /// 对应的调用标识。
+        call_id: String,
+        /// 是否批准（true=批准继续执行；false=拒绝，随后跟一条失败 `ToolResult`）。
+        approved: bool,
     },
     /// 工具执行结果（已按摄入截断策略处理，见 docs/architecture.md §5.2）。
     ToolResult {

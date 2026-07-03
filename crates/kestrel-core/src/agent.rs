@@ -134,7 +134,7 @@ impl Agent {
 
         while let Some(op) = op_rx.recv().await {
             match op {
-                Op::UserInput { text } => {
+                Op::UserInput { text, think } => {
                     turn.emit(
                         CrewRole::Lead,
                         EventPayload::UserInput { text: text.clone() },
@@ -152,6 +152,7 @@ impl Agent {
                             &mut read_paths,
                             &mut op_rx,
                             &cancel,
+                            think,
                         )
                         .await
                     {
@@ -203,12 +204,13 @@ impl Agent {
         read_paths: &mut HashSet<String>,
         op_rx: &mut mpsc::Receiver<Op>,
         cancel: &CancellationToken,
+        think: bool,
     ) -> Result<(), CoreError> {
         for _ in 0..self.config.limits.max_iterations {
             if cancel.is_cancelled() {
                 return Err(CoreError::Cancelled);
             }
-            let (text, calls) = self.stream_once(turn, history, op_rx, cancel).await?;
+            let (text, calls) = self.stream_once(turn, history, op_rx, cancel, think).await?;
             history.push(Message::assistant_calls(text, calls.clone()));
 
             if calls.is_empty() {
@@ -248,10 +250,12 @@ impl Agent {
         history: &[Message],
         op_rx: &mut mpsc::Receiver<Op>,
         cancel: &CancellationToken,
+        think: bool,
     ) -> Result<(String, Vec<ToolCall>), CoreError> {
         let req = CompletionRequest {
             tools: self.tools.specs(),
             messages: history.to_vec(),
+            think,
         };
         let mut stream = self.backend.stream(req).await?;
         let mut text = String::new();
@@ -280,6 +284,11 @@ impl Agent {
                 CompletionChunk::Text { delta } => {
                     text.push_str(&delta);
                     turn.emit(CrewRole::Lead, EventPayload::AgentText { text: delta })
+                        .await?;
+                }
+                // 思考增量：只转发给前端折叠展示，不并入正文 `text`（不进历史）。
+                CompletionChunk::Reasoning { delta } => {
+                    turn.emit(CrewRole::Lead, EventPayload::AgentReasoning { text: delta })
                         .await?;
                 }
                 CompletionChunk::ToolCall {
@@ -366,8 +375,27 @@ impl Agent {
                 )
                 .await?;
                 match await_approval(op_rx, &call.id).await? {
-                    Approval::Approved => {}
+                    Approval::Approved => {
+                        // 批准落账：折叠状态据此把工具翻到 running（切页/回放不再重弹审批）。
+                        turn.emit(
+                            CrewRole::System,
+                            EventPayload::ApprovalResolved {
+                                call_id: call.id.clone(),
+                                approved: true,
+                            },
+                        )
+                        .await?;
+                    }
                     Approval::Denied(reason) => {
+                        // 拒绝同样落账（审计对称），随后跟一条失败 ToolResult 喂回模型换路。
+                        turn.emit(
+                            CrewRole::System,
+                            EventPayload::ApprovalResolved {
+                                call_id: call.id.clone(),
+                                approved: false,
+                            },
+                        )
+                        .await?;
                         let msg = reason.unwrap_or_else(|| "denied by user".to_owned());
                         return finish_call(turn, history, call, false, msg).await;
                     }

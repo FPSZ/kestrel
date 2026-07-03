@@ -58,6 +58,10 @@ impl OpenAiCompatBackend {
             "messages": messages,
             "stream": true,
             "cache_prompt": true,
+            // Qwen3 等推理模型：由本轮开关决定是否开思考。开时 <think> 走独立的
+            // reasoning_content 通道（否则带 tools 时模型常把推理内联进正文）；关时
+            // 直接答、省延迟。不识别此字段的模型忽略之。
+            "chat_template_kwargs": { "enable_thinking": req.think },
         });
         if !tools.is_empty() {
             body["tools"] = serde_json::Value::Array(tools);
@@ -237,6 +241,24 @@ async fn handle_sse_data(
         let send = tx
             .send(Ok(CompletionChunk::Text {
                 delta: text.to_owned(),
+            }))
+            .await;
+        if send.is_err() {
+            return Some(true);
+        }
+    }
+
+    // 思考通道：不同后端用 `reasoning_content`（llama.cpp / DeepSeek 风格）
+    // 或 `reasoning`；两者都收，作为独立的 Reasoning 增量上抛（与正文分开）。
+    if let Some(rtext) = delta
+        .get("reasoning_content")
+        .or_else(|| delta.get("reasoning"))
+        .and_then(|c| c.as_str())
+        && !rtext.is_empty()
+    {
+        let send = tx
+            .send(Ok(CompletionChunk::Reasoning {
+                delta: rtext.to_owned(),
             }))
             .await;
         if send.is_err() {
