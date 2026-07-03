@@ -7,6 +7,8 @@ use kestrel_protocol::{AgentMode, Event, EventPayload, Op, RiskLevel};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::mpsc;
 
+use crate::i18n::t;
+
 /// 运行 REPL 直到用户退出或事件通道关闭。
 ///
 /// slash 命令（与 WebUI 命令面同源）：`/think on|off`、`/mode ask|auto|plan`、
@@ -76,9 +78,12 @@ fn handle_slash(line: &str, think: &mut bool, mode: &mut AgentMode) -> SlashOutc
         "/quit" | "/exit" => SlashOutcome::Quit,
         "/help" => {
             println!(
-                "  命令：/think on|off   /mode ask|auto|plan   /help   /quit\n\
-                 \x20 当前：思考={}  模式={}",
+                "  {}\n   {}: {}={}  {}={}",
+                t("cli.help.commands"),
+                t("cli.current"),
+                t("cli.think"),
                 if *think { "on" } else { "off" },
+                t("cli.mode"),
                 mode_label(*mode)
             );
             SlashOutcome::Handled
@@ -88,11 +93,15 @@ fn handle_slash(line: &str, think: &mut bool, mode: &mut AgentMode) -> SlashOutc
                 "on" | "" => *think = true,
                 "off" => *think = false,
                 other => {
-                    println!("  /think 需 on|off（收到 '{other}'）");
+                    println!("  {}: {other}", t("cli.think.usage"));
                     return SlashOutcome::Handled;
                 }
             }
-            println!("  思考 = {}", if *think { "on" } else { "off" });
+            println!(
+                "  {} = {}",
+                t("cli.think"),
+                if *think { "on" } else { "off" }
+            );
             SlashOutcome::Handled
         }
         "/mode" => {
@@ -101,12 +110,12 @@ fn handle_slash(line: &str, think: &mut bool, mode: &mut AgentMode) -> SlashOutc
                 "auto" => AgentMode::Auto,
                 "plan" => AgentMode::Plan,
                 other => {
-                    println!("  /mode 需 ask|auto|plan（收到 '{other}'）");
+                    println!("  {}: {other}", t("cli.mode.usage"));
                     return SlashOutcome::Handled;
                 }
             };
             *mode = next;
-            println!("  模式 = {}", mode_label(*mode));
+            println!("  {} = {}", t("cli.mode"), mode_label(*mode));
             SlashOutcome::Handled
         }
         // 未知的 /xxx：不当命令，原样作为消息发给模型。
@@ -116,9 +125,9 @@ fn handle_slash(line: &str, think: &mut bool, mode: &mut AgentMode) -> SlashOutc
 
 fn mode_label(mode: AgentMode) -> &'static str {
     match mode {
-        AgentMode::Ask => "询问(ask)",
-        AgentMode::Auto => "全部执行(auto)",
-        AgentMode::Plan => "计划(plan)",
+        AgentMode::Ask => t("cli.mode.ask"),
+        AgentMode::Auto => t("cli.mode.auto"),
+        AgentMode::Plan => t("cli.mode.plan"),
     }
 }
 
@@ -135,10 +144,14 @@ async fn drain_turn(
                 flush().await?;
             }
             EventPayload::ToolCallRequested { tool, args, .. } => {
-                println!("\n  [调用] {tool} {}", compact(&args));
+                println!("\n  {} {tool} {}", t("cli.tool.call"), compact(&args));
             }
             EventPayload::ToolResult { ok, content, .. } => {
-                let tag = if ok { "结果" } else { "失败" };
+                let tag = if ok {
+                    t("cli.tool.result")
+                } else {
+                    t("cli.tool.failed")
+                };
                 println!("  [{tag}] {}", first_lines(&content, 8));
             }
             EventPayload::ApprovalRequired { call_id, risk, .. } => {
@@ -152,7 +165,7 @@ async fn drain_turn(
                 return Ok(true);
             }
             EventPayload::Error { message, .. } => {
-                eprintln!("\n[错误] {message}");
+                eprintln!("\n{} {message}", t("cli.error"));
                 return Ok(true);
             }
             // 预算快照在轮次边界发出：CLI 用一行低调提示，逼近上限才有存在感。
@@ -178,7 +191,7 @@ async fn ask_approval(
     call_id: String,
     risk: RiskLevel,
 ) -> anyhow::Result<Op> {
-    prompt(&format!("\n  [批准? {risk:?}] y/N: ")).await?;
+    prompt(&format!("\n  [{} {risk:?}] y/N: ", t("cli.approve.prompt"))).await?;
     let ans = stdin.next_line().await?.unwrap_or_default();
     if matches!(ans.trim(), "y" | "Y" | "yes") {
         Ok(Op::Approve { call_id })

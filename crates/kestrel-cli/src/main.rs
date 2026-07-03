@@ -6,6 +6,7 @@
 //! M1 形态：回合制 REPL（读一行 -> 提交 Op -> 渲染事件流直到本轮结束）。
 //! ratatui TUI 与机组车道渲染在 M2 引入。
 
+mod i18n;
 mod repl;
 
 use std::path::{Path, PathBuf};
@@ -126,7 +127,7 @@ async fn main() -> anyhow::Result<()> {
         engine.model,
         workdir_display
     );
-    println!("输入消息开始对话，/quit 退出。\n");
+    println!("{}\n", i18n::t("cli.startup.hint"));
 
     repl::run(op_tx, event_rx).await?;
 
