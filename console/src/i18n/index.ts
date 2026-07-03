@@ -57,3 +57,36 @@ export function t(key: string, params?: Record<string, string | number>): string
   }
   return s
 }
+
+// --- Locale-aware formatting (foundations #8) --------------------------------
+// Timestamps are stored/transported as epoch millis (UTC, timezone-agnostic);
+// formatting to the viewer's locale + timezone happens here at the edge via Intl.
+// Keyed off the app locale (getLocale()), not the browser default, so a /lang
+// override formats consistently with the rest of the UI.
+
+/** Locale-aware wall-clock time (24h), e.g. "14:07:32" / "14:07:32". */
+export function formatTime(ts: number): string {
+  return new Intl.DateTimeFormat(locale, {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(new Date(ts))
+}
+
+/** Locale-aware date + time, for replay headers and the like. */
+export function formatDateTime(ts: number): string {
+  return new Intl.DateTimeFormat(locale, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(new Date(ts))
+}
+
+/** Locale-aware number with grouping, e.g. 3200 -> "3,200" / "3,200". */
+export function formatNumber(n: number): string {
+  return new Intl.NumberFormat(locale).format(n)
+}

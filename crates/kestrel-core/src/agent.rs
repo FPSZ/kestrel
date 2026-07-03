@@ -87,6 +87,7 @@ impl Turn<'_> {
             seq: self.seq,
             actor,
             payload,
+            ts: None, // core 不盖时间戳（确定性）；由 store 在 IO 边缘盖章。
         };
         self.seq += 1;
         self.store.append(&self.session, &event).await?;

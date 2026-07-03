@@ -54,9 +54,30 @@ impl JsonlStore {
     }
 }
 
+/// 当前 UTC 时间（epoch 毫秒）。IO 边缘读时钟（非 core），合确定性铁律
+/// （非确定性作为数据在边缘捕获，foundations #5/#8）。
+fn now_millis() -> u64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .ok()
+        .and_then(|d| u64::try_from(d.as_millis()).ok())
+        .unwrap_or(0)
+}
+
 #[async_trait]
 impl Store for JsonlStore {
     async fn append(&self, session: &SessionId, event: &Event) -> Result<(), CoreError> {
+        // 在落盘边缘盖 UTC 时间戳（core 传来的 event.ts 为 None）。已带 ts 的（如回放后
+        // 再写）保持不变，幂等。
+        let stamped = if event.ts.is_none() {
+            let mut e = event.clone();
+            e.ts = Some(now_millis());
+            Some(e)
+        } else {
+            None
+        };
+        let event = stamped.as_ref().unwrap_or(event);
         let line = serde_json::to_string(event)
             .map_err(|e| CoreError::Store(format!("serialize event: {e}")))?;
         tokio::fs::create_dir_all(&self.root)
@@ -124,12 +145,17 @@ mod tests {
                 text: "hello".to_owned(),
                 images: Vec::new(),
             },
+            ts: None,
         };
         store.append(&session, &e).await.unwrap();
 
         let back = store.replay(&session).await.unwrap();
         assert_eq!(back.len(), 1);
         assert_eq!(back[0].seq, 0);
+        assert!(
+            back[0].ts.is_some(),
+            "store stamps a UTC timestamp on append"
+        );
 
         let _ = tokio::fs::remove_dir_all(&dir).await;
     }
@@ -155,6 +181,7 @@ mod tests {
             payload: EventPayload::TurnCompleted {
                 reason: "stop".to_owned(),
             },
+            ts: None,
         };
         store.append(&SessionId("m1".to_owned()), &e).await.unwrap();
         let marker = tokio::fs::read_to_string(dir.join(".schema_version"))

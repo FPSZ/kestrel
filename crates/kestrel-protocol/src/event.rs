@@ -42,6 +42,12 @@ pub struct Event {
     pub actor: CrewRole,
     /// 事件内容。
     pub payload: EventPayload,
+    /// UTC 时间戳（epoch 毫秒）。**由存储 / IO 边缘盖章**（`kestrel-store` append 时），
+    /// core 永不读时钟——守确定性铁律（§5：非确定性只在 IO 边缘作为数据捕获）。旧日志
+    /// 无此字段默认 `None`（前向兼容，ADR-0011）。回放断言须排除本字段（时间戳不进
+    /// 确定性比较，foundations #8）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ts: Option<u64>,
 }
 
 /// 事件内容。

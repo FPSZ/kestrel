@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Terminal, Check, X, AlertTriangle, Loader, ChevronRight } from 'lucide-react'
 import { client } from '@/lib/client'
 import type { Block, ToolBlock } from '@/lib/store'
-import { t } from '@/i18n'
+import { t, formatTime } from '@/i18n'
 import { Markdown } from './markdown'
 
 /**
@@ -253,12 +253,7 @@ function StatusBadge({ status }: { status: ToolBlock['status'] }) {
 function fmtTime(ts?: number): string {
   if (ts == null) return ''
   try {
-    return new Date(ts).toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
-    })
+    return formatTime(ts) // locale-aware (foundations #8), keyed off the app locale
   } catch {
     return ''
   }
