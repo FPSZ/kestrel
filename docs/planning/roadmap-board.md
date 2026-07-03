@@ -102,7 +102,7 @@ CI 硬门槛(fmt / clippy -D warnings / test / cargo-deny)全绿。
 - [X] G2  AGENTS.md §5.1 地基铁律 + §10 自查项（i18n / 设计令牌 / 确定性 / 密钥 / 前向兼容）
 - [X] G3  foundations.md 地基清单（Tier 1-3 + 待拍板项）
 - [ ] G4  protocol/core：错误分类 `ErrorCode` + 结构化 params，替换 core/tools 里硬编码英文错误串
-- [ ] G5  console：i18n 脚手架（`t(key,params)` + `src/i18n/{en-US,zh-CN}.json`）+ 迁移现有硬编码文本
+- [~] G5  console：i18n 脚手架已落（`t(key,params)` + `src/i18n/{en-US,zh-CN}.json`，navigator 选区 + en-US 兜底 + localStorage 覆盖）；**chat 界面（composer/命令面/选择器/工具卡/审批/状态）已迁移**。其余视图（settings/sidebar/topbar/launcher）待续迁
 - [ ] G6  kestrel-cli：用户可见 TUI/REPL 文本走 catalog（tracing 开发日志保持英文）
 - [ ] G7  console：设计令牌审计——组件里硬编码颜色/间距/字号挪进 `@theme` 令牌
 - [ ] G8  CI：加 i18n / 硬编码门禁（console 用 ESLint `no-literal-string` 类规则）
