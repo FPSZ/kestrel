@@ -58,16 +58,19 @@ pub struct StatusSnapshot {
     pub model: String,
     /// 失败原因（`state=failed` 时非空）。
     pub error: String,
+    /// 引擎 stderr 最近日志行（自启引擎；供 UI 日志窗）。
+    pub logs: Vec<String>,
 }
 
 impl Launcher {
-    /// 当前状态快照。
+    /// 当前状态快照（含引擎最近日志）。
     pub fn snapshot(&self) -> StatusSnapshot {
         StatusSnapshot {
             state: self.state,
             base_url: self.base_url.clone(),
             model: self.model.clone(),
             error: self.error.clone(),
+            logs: self.handle.as_ref().map(EngineHandle::recent_logs).unwrap_or_default(),
         }
     }
 }
@@ -202,9 +205,19 @@ async fn models(Query(q): Query<ModelsQuery>) -> impl IntoResponse {
     }))
 }
 
-/// 当前引擎状态快照。
+/// 当前引擎状态快照（顺带崩溃检测：以为在跑但进程已退 -> 翻 Failed，保留日志）。
 async fn status(State(shared): State<SharedLauncher>) -> impl IntoResponse {
-    Json(shared.lock().await.snapshot())
+    let mut g = shared.lock().await;
+    if g.state == EngineState::Running {
+        let dead = g.handle.as_mut().is_none_or(|h| !h.is_alive());
+        if dead {
+            g.state = EngineState::Failed;
+            if g.error.is_empty() {
+                "engine process exited unexpectedly".clone_into(&mut g.error);
+            }
+        }
+    }
+    Json(g.snapshot())
 }
 
 /// 启动一个引擎（后台任务，立即 202；前端轮询 status 看 loading -> running）。

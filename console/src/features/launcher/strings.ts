@@ -44,6 +44,9 @@ const EN: Dict = {
   'launcher.bin.none': 'no llama-server found',
   'launcher.bin.onPath': 'on PATH',
   'launcher.needBin': 'A llama-server binary is required to run a local model.',
+  'launcher.opt.ctx': 'Context',
+  'launcher.opt.gpu': 'GPU layers',
+  'launcher.logs.title': 'Logs',
 
   'launcher.running.title': 'Running engines',
   'launcher.running.empty': 'No running engine detected on common local ports.',
@@ -88,6 +91,9 @@ const ZH: Dict = {
   'launcher.bin.none': '没找到 llama-server',
   'launcher.bin.onPath': '在 PATH',
   'launcher.needBin': '运行本地模型需要一个 llama-server 二进制。',
+  'launcher.opt.ctx': '上下文',
+  'launcher.opt.gpu': 'GPU 层',
+  'launcher.logs.title': '日志',
 
   'launcher.running.title': '运行中的引擎',
   'launcher.running.empty': '常见本地端口上没探到在跑的引擎。',

@@ -1,12 +1,22 @@
-//! 启动 + 监督：spawn 引擎、轮询 `/health` 就绪、握住句柄以便 stop（原子杀）。
+//! 启动 + 监督：spawn 引擎、轮询 `/health` 就绪、抓 stderr 日志、握住句柄以便 stop。
 
+use std::collections::VecDeque;
 use std::path::Path;
+use std::process::Stdio;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
 
 use crate::error::RuntimeError;
 use crate::spec::{EngineSource, LaunchSpec, llama_server_args};
+
+/// 保留的引擎日志行数上限（环形缓冲，够看加载进度与报错，不吃内存）。
+const LOG_CAP: usize = 400;
+
+/// 引擎 stderr 日志环（跨 spawn 的读取任务与句柄共享）。
+type LogRing = Arc<Mutex<VecDeque<String>>>;
 
 /// 已启动 / 已连接引擎的句柄。握住它 = 握住进程生命周期。
 ///
@@ -18,6 +28,8 @@ pub struct EngineHandle {
     /// 自启模式持有子进程；委托 / 连接模式为 `None`（不归我们管的进程绝不杀）。
     child: Option<Child>,
     source_desc: &'static str,
+    /// 自启引擎的 stderr 日志环（委托 / 连接为空）。
+    logs: LogRing,
 }
 
 impl EngineHandle {
@@ -31,6 +43,24 @@ impl EngineHandle {
     #[must_use]
     pub fn source(&self) -> &str {
         self.source_desc
+    }
+
+    /// 最近的引擎 stderr 日志行（自启引擎；委托 / 连接为空）。供 UI 的日志窗。
+    #[must_use]
+    pub fn recent_logs(&self) -> Vec<String> {
+        self.logs
+            .lock()
+            .map(|g| g.iter().cloned().collect())
+            .unwrap_or_default()
+    }
+
+    /// 自启子进程是否仍在跑（崩溃检测）。委托 / 连接不归我们管，一律视为「在」。
+    /// 取 `&mut self`：`try_wait` 需可变借用子进程。
+    pub fn is_alive(&mut self) -> bool {
+        match self.child.as_mut() {
+            Some(child) => matches!(child.try_wait(), Ok(None)), // Ok(None)=仍在跑
+            None => true,
+        }
     }
 
     /// 引擎当前是否健康（`GET /health` 返回 2xx）。
@@ -85,13 +115,39 @@ pub async fn launch(spec: LaunchSpec) -> Result<EngineHandle, RuntimeError> {
 
             let mut cmd = Command::new(bin);
             cmd.args(&args);
+            cmd.stderr(Stdio::piped()); // 抓引擎日志（llama-server 走 stderr）。
             cmd.kill_on_drop(true); // 句柄泄漏时兜底收割，防僵尸引擎。
             let mut child = cmd.spawn().map_err(|source| RuntimeError::Spawn {
                 bin: bin.clone(),
                 source,
             })?;
 
-            wait_ready_child(&spec, &mut child).await?;
+            // stderr -> 环形日志缓冲（后台任务持续追加，句柄据此供 UI 日志窗）。
+            let logs: LogRing = Arc::new(Mutex::new(VecDeque::with_capacity(LOG_CAP)));
+            if let Some(stderr) = child.stderr.take() {
+                let sink = logs.clone();
+                tokio::spawn(async move {
+                    let mut lines = BufReader::new(stderr).lines();
+                    while let Ok(Some(line)) = lines.next_line().await {
+                        if let Ok(mut g) = sink.lock() {
+                            if g.len() >= LOG_CAP {
+                                g.pop_front();
+                            }
+                            g.push_back(line);
+                        }
+                    }
+                });
+            }
+
+            // 就绪失败时把最后几行日志折进错误，让 UI 直接看到「为什么起不来」。
+            if let Err(e) = wait_ready_child(&spec, &mut child).await {
+                let tail = log_tail(&logs, 6);
+                return Err(if tail.is_empty() {
+                    e
+                } else {
+                    RuntimeError::LaunchFailed(format!("{e}\n{tail}"))
+                });
+            }
 
             let base_url = spec.resolved_base_url();
             tracing::info!(
@@ -104,6 +160,7 @@ pub async fn launch(spec: LaunchSpec) -> Result<EngineHandle, RuntimeError> {
                 base_url,
                 child: Some(child),
                 source_desc: "self:llama.cpp",
+                logs,
             })
         }
 
@@ -128,6 +185,7 @@ pub async fn launch(spec: LaunchSpec) -> Result<EngineHandle, RuntimeError> {
                 base_url,
                 child: None,
                 source_desc: "delegate",
+                logs: empty_logs(),
             })
         }
 
@@ -138,9 +196,25 @@ pub async fn launch(spec: LaunchSpec) -> Result<EngineHandle, RuntimeError> {
                 base_url,
                 child: None,
                 source_desc: "connect",
+                logs: empty_logs(),
             })
         }
     }
+}
+
+/// 空日志环（委托 / 连接模式没有我们管的进程，无日志可抓）。
+fn empty_logs() -> LogRing {
+    Arc::new(Mutex::new(VecDeque::new()))
+}
+
+/// 取日志环最后 `n` 行拼成一段（失败诊断用）。
+fn log_tail(logs: &LogRing, n: usize) -> String {
+    logs.lock()
+        .map(|g| {
+            let start = g.len().saturating_sub(n);
+            g.iter().skip(start).cloned().collect::<Vec<_>>().join("\n")
+        })
+        .unwrap_or_default()
 }
 
 /// 白名单校验：`bin` 必须是**存在的绝对路径的文件**（ADR-0010 §5 防任意路径 spawn）。

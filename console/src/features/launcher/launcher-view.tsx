@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, Copy, Cpu, FolderOpen, RefreshCw, Square } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { tl } from './strings'
@@ -17,7 +17,13 @@ type RunningEngine = { base_url: string; kind: string; n_ctx: number | null; mod
 type BinaryCandidate = { path: string; on_path: boolean }
 type ScanResult = { binaries: BinaryCandidate[]; running: RunningEngine[] }
 type EngineState = 'stopped' | 'loading' | 'running' | 'failed'
-type EngineStatus = { state: EngineState; base_url: string; model: string; error: string }
+type EngineStatus = {
+  state: EngineState
+  base_url: string
+  model: string
+  error: string
+  logs: string[]
+}
 
 const DIR_KEY = 'kestrel.modelsDir'
 
@@ -47,6 +53,8 @@ export function LauncherView() {
   const [busy, setBusy] = useState(false)
   const [apiError, setApiError] = useState(false)
   const [selectedBin, setSelectedBin] = useState('')
+  const [ctx, setCtx] = useState('')
+  const [gpu, setGpu] = useState('auto')
   const [pending, setPending] = useState('') // model path currently being launched
   const [copied, setCopied] = useState('')
 
@@ -125,7 +133,14 @@ export function LauncherView() {
       await fetch('/api/launcher/launch', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ source: 'self', bin: selectedBin, model_path: m.path, model: m.name }),
+        body: JSON.stringify({
+          source: 'self',
+          bin: selectedBin,
+          model_path: m.path,
+          model: m.name,
+          n_ctx: ctx.trim() ? Number(ctx) : 32768,
+          gpu_layers: gpu,
+        }),
       })
       await loadStatus()
     } catch {
@@ -166,8 +181,11 @@ export function LauncherView() {
           </div>
         )}
 
-        {/* Local server — one-line live status strip. */}
+        {/* Local server — one-line live status strip + engine logs when active. */}
         <ServerStrip status={status} onStop={() => void stopEngine()} />
+        {status && status.state !== 'stopped' && status.logs.length > 0 && (
+          <LogsPanel logs={status.logs} />
+        )}
 
         {/* Models folder + one Scan action + engine binary (compact). */}
         <div className="mb-6 mt-5">
@@ -216,6 +234,33 @@ export function LauncherView() {
             ) : (
               <span className="text-warn">{tl('launcher.bin.none')}</span>
             )}
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11.5px] text-ink-mute">
+            <label className="flex items-center gap-1.5">
+              <span>{tl('launcher.opt.ctx')}</span>
+              <input
+                value={ctx}
+                onChange={(e) => setCtx(e.target.value.replace(/[^0-9]/g, ''))}
+                placeholder="32768"
+                inputMode="numeric"
+                className="focus-ring w-20 rounded border border-line bg-surface px-1.5 py-0.5 font-mono text-ink-3 placeholder:text-ink-mute"
+              />
+            </label>
+            <label className="flex items-center gap-1.5">
+              <span>{tl('launcher.opt.gpu')}</span>
+              <select
+                value={gpu}
+                onChange={(e) => setGpu(e.target.value)}
+                className="rounded border border-line bg-surface px-1.5 py-0.5 font-mono text-ink-3 focus:outline-none"
+              >
+                <option value="auto" className="bg-bezel">
+                  auto
+                </option>
+                <option value="max" className="bg-bezel">
+                  max
+                </option>
+              </select>
+            </label>
           </div>
         </div>
 
@@ -354,6 +399,31 @@ function ServerStrip({ status, onStop }: { status: EngineStatus | null; onStop: 
           {state === 'failed' && status?.error ? status.error : tl('launcher.engine.idle')}
         </span>
       )}
+    </div>
+  )
+}
+
+/** Engine stderr logs (llama.cpp loading progress / errors). Auto-scrolls to newest. */
+function LogsPanel({ logs }: { logs: string[] }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (ref.current) ref.current.scrollTop = ref.current.scrollHeight
+  }, [logs])
+  return (
+    <div className="mt-2 overflow-hidden rounded-lg border border-line">
+      <div className="border-b border-line px-3 py-1.5 text-[11px] font-medium text-ink-3">
+        {tl('launcher.logs.title')}
+      </div>
+      <div
+        ref={ref}
+        className="max-h-44 overflow-y-auto px-3 py-2 font-mono text-[11.5px] leading-relaxed text-ink-3"
+      >
+        {logs.map((l, i) => (
+          <div key={i} className="break-all whitespace-pre-wrap">
+            {l}
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

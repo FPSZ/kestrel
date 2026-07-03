@@ -40,4 +40,8 @@ pub enum RuntimeError {
     /// 启动规格字段不合法 / 缺必填项（如 source=self 却没给 bin/model_path）。
     #[error("invalid launch spec: {0}")]
     InvalidSpec(String),
+
+    /// 引擎启动失败（含引擎 stderr 尾部日志，便于诊断「为什么起不来」）。
+    #[error("engine launch failed: {0}")]
+    LaunchFailed(String),
 }
