@@ -587,6 +587,7 @@ dependencies = [
  "kestrel-backend",
  "kestrel-core",
  "kestrel-protocol",
+ "kestrel-runtime",
  "kestrel-store",
  "kestrel-tools",
  "serde_json",
@@ -617,6 +618,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "kestrel-runtime"
+version = "0.1.0"
+dependencies = [
+ "reqwest",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "kestrel-server"
 version = "0.1.0"
 dependencies = [
@@ -626,6 +637,7 @@ dependencies = [
  "kestrel-backend",
  "kestrel-core",
  "kestrel-protocol",
+ "kestrel-runtime",
  "kestrel-store",
  "kestrel-tools",
  "serde",

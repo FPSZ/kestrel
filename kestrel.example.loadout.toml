@@ -1,0 +1,57 @@
+# Kestrel Loadout 示例（ADR-0006 + ADR-0010）。
+#
+# 一份 Loadout 声明「带什么进战场」。本阶段模型启动器只消费 [model] 维度（引擎@参数）；
+# 其余维度（persona/tools/permission/crew/memory）是 ADR-0006 预留的格式草案，解析但暂
+# 不编译（成本感知编译器随 M4 落地）。把本文件复制成 kestrel.loadout.toml 并在 kestrel.toml
+# 里设 `loadout = "kestrel.loadout.toml"` 启用。
+
+[metadata]
+name = "example"
+version = "0.1.0"
+author = ""
+audience = "general"       # ctf | gov | home | general ...
+description = "示例 Loadout：自启一个本地 llama.cpp。"
+
+# ---------------------------------------------------------------------------
+# [model]：引擎 / 模型启动维度。source 选一种：
+#
+#   self     自启 llama.cpp（控制最全）。Kestrel spawn llama-server，强制 --jinja +
+#            --host 127.0.0.1，轮询 /health 就绪后再连。bin/model_path 必须是绝对路径
+#            （白名单=显式配置，ADR-0010 §5）。退出时自动 kill 该进程。
+#   delegate 委托一个已在跑的宿主（lms / ollama / 手起 llama-server）。可达才用，
+#            不代起、不代杀（尊重你自己的 qon/qoff 流）。
+#   connect  纯连接一个 base_url，零启动（等价于 [backend] 现状）。
+# ---------------------------------------------------------------------------
+[model]
+source = "self"
+
+# --- source = "self" 用这几项 ---
+bin = "C:/tools/llama.cpp/llama-server.exe"   # 引擎二进制绝对路径
+model_path = "C:/models/qwen3-8b-q4_k_m.gguf" # gguf 模型绝对路径
+port = 8080
+n_ctx = 32768
+gpu_layers = "auto"        # auto（默认，防 OOM）| max | 数字（如 "35"）
+extra_args = []            # 透传给 llama-server 的追加参数，如 ["--flash-attn"]
+
+# 连接层（所有 source 通用）
+kind = "llamacpp"          # self 恒按 llamacpp 连；delegate/connect 可填 lmstudio/openai
+model = "qwen3-8b"         # 模型标识（LM Studio 需匹配已加载模型名）
+api_key = ""               # 委托宿主需 token 时填（不入日志/审计/UI/提交）
+
+# --- source = "delegate" / "connect" 改用显式 base_url（注释掉上面的 bin/model_path）---
+# source = "connect"
+# base_url = "http://127.0.0.1:1234"   # 不含 /v1
+# kind = "lmstudio"
+
+# ---------------------------------------------------------------------------
+# 以下维度为 ADR-0006 预留（解析但暂不编译，M4 接入编译器）。现在写了也不会生效，
+# 仅作格式草案占位，保证将来只加字段、不破坏兼容。安全铁律：permission 永不随导入继承。
+# ---------------------------------------------------------------------------
+# [persona]
+# system = "You are a focused local coding agent."
+#
+# [crew]
+# lead = "qwen3-8b"
+#
+# [permission]
+# policy = "on-request"

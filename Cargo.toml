@@ -6,6 +6,7 @@ members = [
     "crates/kestrel-backend",
     "crates/kestrel-tools",
     "crates/kestrel-store",
+    "crates/kestrel-runtime",
     "crates/kestrel-cli",
     "crates/kestrel-server",
 ]
@@ -27,6 +28,7 @@ kestrel-core = { path = "crates/kestrel-core", version = "0.1.0" }
 kestrel-backend = { path = "crates/kestrel-backend", version = "0.1.0" }
 kestrel-tools = { path = "crates/kestrel-tools", version = "0.1.0" }
 kestrel-store = { path = "crates/kestrel-store", version = "0.1.0" }
+kestrel-runtime = { path = "crates/kestrel-runtime", version = "0.1.0" }
 
 # 第三方依赖：版本统一在此声明，成员 crate 一律 { workspace = true }
 serde = { version = "1", features = ["derive"] }

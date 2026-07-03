@@ -15,6 +15,12 @@ workdir = "."
 # 下面这行是显式覆盖，取消注释即把会话强制存到指定目录（优先于标准目录）：
 # sessions_dir = "sessions"
 
+# 模型启动器（ADR-0010）：指向一份 Loadout 清单即可让 Kestrel 自己把模型起起来
+#（自启 llama.cpp / 委托已跑宿主 / 纯连接），清单里的 [model] 覆盖下面的 [backend]。
+# 相对路径按本配置文件所在目录解析。留空（默认）= 走下面的 [backend] 纯连接。
+# 见 kestrel.example.loadout.toml。
+# loadout = "kestrel.loadout.toml"
+
 [backend]
 # kind: openai（兜底，默认）| llamacpp | lmstudio
 #   llamacpp / lmstudio 会在启动时探测后端真实上下文长度，覆盖下面的 n_ctx。

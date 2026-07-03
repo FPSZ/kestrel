@@ -8,13 +8,14 @@
 mod http;
 
 use std::net::SocketAddr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::Context;
 use kestrel_core::{Agent, AgentConfig, PermissionEngine, TurnLimits};
 use kestrel_protocol::{Event, Op, SessionId};
-use kestrel_store::{Config, JsonlStore, Layout};
+use kestrel_runtime::EngineHandle;
+use kestrel_store::{Config, JsonlStore, Layout, Loadout};
 use tokio::sync::{broadcast, mpsc};
 
 use http::AppState;
@@ -61,7 +62,10 @@ async fn main() -> anyhow::Result<()> {
         .clone()
         .unwrap_or_else(|| layout.sessions_dir());
     let store = Arc::new(JsonlStore::new(sessions_dir.clone()));
-    let agent = assemble_agent(&config, workdir.clone(), store.clone()).await;
+    // 解析引擎：有 loadout 就按清单自启 / 委托 / 连接（模型启动器，ADR-0010），
+    // 否则现状纯连接。启动器在此阻塞到 /health 就绪。
+    let engine = resolve_engine(&config, layout.config_file()).await?;
+    let agent = assemble_agent(&engine, &config, workdir.clone(), store.clone()).await;
 
     let (op_tx, op_rx) = mpsc::channel::<Op>(32);
     let (event_tx, mut event_rx) = mpsc::channel::<Event>(256);
@@ -89,8 +93,8 @@ async fn main() -> anyhow::Result<()> {
         events: events_bcast,
         store,
         session,
-        model: config.backend.model.clone(),
-        base_url: config.backend.base_url.clone(),
+        model: engine.model.clone(),
+        base_url: engine.base_url.clone(),
         workdir: workdir_display.clone(),
         sessions_dir,
     };
@@ -101,11 +105,12 @@ async fn main() -> anyhow::Result<()> {
         .await
         .with_context(|| format!("bind {addr}"))?;
 
-    tracing::info!(%addr, model = %config.backend.model, "kestrel-server listening");
+    tracing::info!(%addr, source = %engine.source, model = %engine.model, "kestrel-server listening");
     eprintln!(
-        "kestrel-server {} listening on http://{addr}  (model {}, workdir {})",
+        "kestrel-server {} listening on http://{addr}  ({}, model {}, workdir {})",
         env!("CARGO_PKG_VERSION"),
-        config.backend.model,
+        engine.source,
+        engine.model,
         workdir_display
     );
 
@@ -114,20 +119,107 @@ async fn main() -> anyhow::Result<()> {
         .await
         .context("serve")?;
 
+    // 收尾：自启的引擎进程在此被杀（委托 / 连接为 no-op）。
+    if let Some(handle) = engine.handle
+        && let Err(e) = handle.stop().await
+    {
+        tracing::warn!("engine stop: {e}");
+    }
+
     Ok(())
+}
+
+/// 已解析的引擎：一份后端连接参数 + （自启时）持有的进程句柄。
+/// 与 `kestrel-cli` 的同名结构同构（组装根各自装配，未来抽共享默认值见 T2）。
+struct Engine {
+    /// 自启模式持有进程句柄以便收尾 kill；委托 / 连接为 `None`。
+    handle: Option<EngineHandle>,
+    /// 来源简述（`self:llama.cpp` / `delegate` / `connect`）。
+    source: String,
+    /// 后端连接层类型（`llamacpp` / `lmstudio` / `openai`）。
+    kind: String,
+    /// 后端连接的 `base_url`。
+    base_url: String,
+    /// API key（本地后端通常空）。
+    api_key: String,
+    /// 模型标识。
+    model: String,
+    /// 上下文长度兜底（probe 成功以实测覆盖）。
+    n_ctx: u32,
+}
+
+/// 解析引擎：有 `config.loadout` 就按 Loadout 的 `[model]` 维度启动 / 委托 / 连接
+/// （模型启动器，ADR-0010），否则退回 `[backend]` 纯连接。loadout 相对路径按配置
+/// 文件所在目录解析。
+async fn resolve_engine(config: &Config, config_file: &Path) -> anyhow::Result<Engine> {
+    let Some(loadout_rel) = config.loadout.as_ref() else {
+        return Ok(Engine {
+            handle: None,
+            source: "connect".to_owned(),
+            kind: config.backend.kind.clone(),
+            base_url: config.backend.base_url.clone(),
+            api_key: config.backend.api_key.clone(),
+            model: config.backend.model.clone(),
+            n_ctx: config.backend.n_ctx,
+        });
+    };
+
+    let loadout_path = resolve_relative(config_file, loadout_rel);
+    let loadout = Loadout::load(&loadout_path)
+        .with_context(|| format!("load loadout {}", loadout_path.display()))?;
+    let m = &loadout.model;
+    let spec = kestrel_runtime::LaunchSpec::from_parts(
+        &m.source,
+        m.bin.clone(),
+        m.model_path.clone(),
+        m.base_url.clone(),
+        m.port,
+        m.n_ctx,
+        m.gpu_layers.clone(),
+        m.extra_args.clone(),
+    )?;
+    let handle = kestrel_runtime::launch(spec)
+        .await
+        .context("launch model engine")?;
+    Ok(Engine {
+        source: handle.source().to_owned(),
+        base_url: handle.base_url().to_owned(),
+        kind: loadout.backend_kind().to_owned(),
+        api_key: m.api_key.clone(),
+        model: m.model.clone(),
+        n_ctx: m.n_ctx,
+        handle: Some(handle),
+    })
+}
+
+/// 把可能是相对的 `p` 按 `base_file` 所在目录解析成绝对路径；`p` 本身绝对则原样返回。
+fn resolve_relative(base_file: &Path, p: &Path) -> PathBuf {
+    if p.is_absolute() {
+        p.to_path_buf()
+    } else {
+        base_file
+            .parent()
+            .map_or_else(|| p.to_path_buf(), |dir| dir.join(p))
+    }
 }
 
 /// 组装 agent：选后端 -> 探测真实 n_ctx -> deny 预过滤工具 -> 建权限门。
 /// 与 `kestrel-cli` 的组装逻辑同构（core 一行不改，两个前端各自装配）。
-async fn assemble_agent(config: &Config, workdir: PathBuf, store: Arc<JsonlStore>) -> Agent {
+/// 后端连接参数取自已解析的 [`Engine`]（loadout 启动或纯连接）；deny / 策略取自 `config`。
+async fn assemble_agent(
+    engine: &Engine,
+    config: &Config,
+    workdir: PathBuf,
+    store: Arc<JsonlStore>,
+) -> Agent {
     let backend = kestrel_backend::build(
-        &config.backend.kind,
-        config.backend.base_url.clone(),
-        config.backend.api_key.clone(),
-        config.backend.model.clone(),
-        config.backend.n_ctx,
+        &engine.kind,
+        engine.base_url.clone(),
+        engine.api_key.clone(),
+        engine.model.clone(),
+        engine.n_ctx,
     );
-    // 探测真实上下文长度喂给 context ledger（失败优雅回退配置值）。
+    // 探测真实上下文长度喂给 context ledger（失败优雅回退引擎/配置值）。
     let n_ctx = match backend.probe().await {
         Ok(caps) => {
             tracing::info!(
@@ -140,9 +232,9 @@ async fn assemble_agent(config: &Config, workdir: PathBuf, store: Arc<JsonlStore
         Err(e) => {
             tracing::warn!(
                 "probe failed ({e}); using configured n_ctx {}",
-                config.backend.n_ctx
+                engine.n_ctx
             );
-            config.backend.n_ctx
+            engine.n_ctx
         }
     };
     let mut tools = kestrel_tools::builtin();

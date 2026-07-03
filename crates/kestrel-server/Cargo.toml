@@ -21,6 +21,7 @@ kestrel-protocol = { workspace = true }
 kestrel-backend = { workspace = true }
 kestrel-tools = { workspace = true }
 kestrel-store = { workspace = true }
+kestrel-runtime = { workspace = true }
 anyhow = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

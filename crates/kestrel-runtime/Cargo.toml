@@ -1,0 +1,23 @@
+[package]
+name = "kestrel-runtime"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# 进程启动/监督 + 就绪轮询（IO 边缘，可用时钟/网络；core 不依赖本 crate）
+tokio = { workspace = true, features = ["process", "time", "rt", "macros", "io-util"] }
+reqwest = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+# 单测用真实回环 socket 假冒 /health，无需装 llama-server
+tokio = { workspace = true, features = ["process", "time", "rt", "rt-multi-thread", "macros", "net", "io-util"] }

@@ -26,6 +26,11 @@ pub struct Config {
     /// （[`crate::Layout`]，ADR-0009）。设置后优先于标准目录（尊重"数据在手边"）。
     #[serde(default)]
     pub sessions_dir: Option<PathBuf>,
+    /// Loadout 清单路径（ADR-0006 + ADR-0010）。默认 `None`：走 `[backend]` 纯连接。
+    /// 设置后由模型启动器按清单的 `[model]` 维度自启 / 委托 / 连接引擎，`[model]`
+    /// 覆盖 `[backend]`。相对路径按配置文件所在目录解析（见组装根）。
+    #[serde(default)]
+    pub loadout: Option<PathBuf>,
 }
 
 /// 后端连接配置。
@@ -53,6 +58,7 @@ impl Default for Config {
             deny_tools: Vec::new(),
             workdir: PathBuf::from("."),
             sessions_dir: None,
+            loadout: None,
         }
     }
 }

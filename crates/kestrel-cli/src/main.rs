@@ -8,13 +8,14 @@
 
 mod repl;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::Context;
 use kestrel_core::{Agent, AgentConfig, PermissionEngine, TurnLimits};
 use kestrel_protocol::{Event, Op, SessionId};
-use kestrel_store::{Config, JsonlStore, Layout};
+use kestrel_runtime::EngineHandle;
+use kestrel_store::{Config, JsonlStore, Layout, Loadout};
 use tokio::sync::mpsc;
 
 /// 精简 system prompt（前缀稳定、控制在低 token）。
@@ -50,14 +51,18 @@ async fn main() -> anyhow::Result<()> {
         .trim_start_matches(r"\\?\")
         .to_owned();
 
+    // 解析引擎：有 loadout 就按清单自启 / 委托 / 连接（模型启动器，ADR-0010），
+    // 否则现状纯连接（参数取 [backend]）。启动器在此阻塞到 /health 就绪。
+    let engine = resolve_engine(&config, layout.config_file()).await?;
+
     let backend = kestrel_backend::build(
-        &config.backend.kind,
-        config.backend.base_url.clone(),
-        config.backend.api_key.clone(),
-        config.backend.model.clone(),
-        config.backend.n_ctx,
+        &engine.kind,
+        engine.base_url.clone(),
+        engine.api_key.clone(),
+        engine.model.clone(),
+        engine.n_ctx,
     );
-    // 探测真实上下文长度喂给 context ledger（失败优雅回退配置值）。
+    // 探测真实上下文长度喂给 context ledger（失败优雅回退引擎/配置值）。
     let n_ctx = match backend.probe().await {
         Ok(caps) => {
             tracing::info!(
@@ -70,9 +75,9 @@ async fn main() -> anyhow::Result<()> {
         Err(e) => {
             tracing::warn!(
                 "probe failed ({e}); using configured n_ctx {}",
-                config.backend.n_ctx
+                engine.n_ctx
             );
-            config.backend.n_ctx
+            engine.n_ctx
         }
     };
     let sessions_dir = config
@@ -111,20 +116,103 @@ async fn main() -> anyhow::Result<()> {
     let agent_handle = tokio::spawn(async move { agent.run(session, op_rx, event_tx).await });
 
     println!(
-        "kestrel {} — backend {} · model {} · workdir {}",
+        "kestrel {} — {} · backend {} · model {} · workdir {}",
         env!("CARGO_PKG_VERSION"),
-        config.backend.base_url,
-        config.backend.model,
+        engine.source,
+        engine.base_url,
+        engine.model,
         workdir_display
     );
     println!("输入消息开始对话，/quit 退出。\n");
 
     repl::run(op_tx, event_rx).await?;
 
+    // 收尾：自启的引擎进程在此被杀（委托 / 连接为 no-op，不代杀他人进程）。
+    if let Some(handle) = engine.handle
+        && let Err(e) = handle.stop().await
+    {
+        tracing::warn!("engine stop: {e}");
+    }
+
     match agent_handle.await {
         Ok(Ok(())) => Ok(()),
         Ok(Err(e)) => Err(anyhow::anyhow!("agent: {e}")),
         Err(e) => Err(anyhow::anyhow!("agent task: {e}")),
+    }
+}
+
+/// 已解析的引擎：一份后端连接参数 + （自启时）持有的进程句柄。
+struct Engine {
+    /// 自启模式持有进程句柄以便收尾 kill；委托 / 连接为 `None`。
+    handle: Option<EngineHandle>,
+    /// 来源简述（`self:llama.cpp` / `delegate` / `connect`），用于横幅与日志。
+    source: String,
+    /// 后端连接层类型（`llamacpp` / `lmstudio` / `openai`）。
+    kind: String,
+    /// 后端连接的 `base_url`。
+    base_url: String,
+    /// API key（本地后端通常空）。
+    api_key: String,
+    /// 模型标识。
+    model: String,
+    /// 上下文长度兜底（probe 成功以实测覆盖）。
+    n_ctx: u32,
+}
+
+/// 解析引擎：有 `config.loadout` 就按 Loadout 的 `[model]` 维度启动 / 委托 / 连接
+/// （模型启动器，ADR-0010），否则退回 `[backend]` 纯连接。
+///
+/// loadout 相对路径按**配置文件所在目录**解析（loadout 常与 kestrel.toml 放一起）。
+async fn resolve_engine(config: &Config, config_file: &Path) -> anyhow::Result<Engine> {
+    let Some(loadout_rel) = config.loadout.as_ref() else {
+        // 无 loadout：现状纯连接，参数取 [backend]。
+        return Ok(Engine {
+            handle: None,
+            source: "connect".to_owned(),
+            kind: config.backend.kind.clone(),
+            base_url: config.backend.base_url.clone(),
+            api_key: config.backend.api_key.clone(),
+            model: config.backend.model.clone(),
+            n_ctx: config.backend.n_ctx,
+        });
+    };
+
+    let loadout_path = resolve_relative(config_file, loadout_rel);
+    let loadout = Loadout::load(&loadout_path)
+        .with_context(|| format!("load loadout {}", loadout_path.display()))?;
+    let m = &loadout.model;
+    let spec = kestrel_runtime::LaunchSpec::from_parts(
+        &m.source,
+        m.bin.clone(),
+        m.model_path.clone(),
+        m.base_url.clone(),
+        m.port,
+        m.n_ctx,
+        m.gpu_layers.clone(),
+        m.extra_args.clone(),
+    )?;
+    let handle = kestrel_runtime::launch(spec)
+        .await
+        .context("launch model engine")?;
+    Ok(Engine {
+        source: handle.source().to_owned(),
+        base_url: handle.base_url().to_owned(),
+        kind: loadout.backend_kind().to_owned(),
+        api_key: m.api_key.clone(),
+        model: m.model.clone(),
+        n_ctx: m.n_ctx,
+        handle: Some(handle),
+    })
+}
+
+/// 把可能是相对的 `p` 按 `base_file` 所在目录解析成绝对路径；`p` 本身绝对则原样返回。
+fn resolve_relative(base_file: &Path, p: &Path) -> PathBuf {
+    if p.is_absolute() {
+        p.to_path_buf()
+    } else {
+        base_file
+            .parent()
+            .map_or_else(|| p.to_path_buf(), |dir| dir.join(p))
     }
 }
 

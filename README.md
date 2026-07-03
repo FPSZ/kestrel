@@ -26,7 +26,8 @@
 | `kestrel-core` | agent loop、context ledger、权限引擎；定义全部端口 trait，零 IO |
 | `kestrel-backend` | LlmBackend 实现：llama.cpp / LM Studio / OpenAI 兼容兜底 |
 | `kestrel-tools` | 内置工具：shell / fs / search（browser 规划中） |
-| `kestrel-store` | JSONL 事件日志、模型 profile、配置 |
+| `kestrel-store` | JSONL 事件日志、模型 profile、配置、Loadout 清单 |
+| `kestrel-runtime` | 模型启动器/监督器：自启 llama.cpp / 委托宿主 / 纯连接（ADR-0010） |
 | `kestrel-cli` | 终端前端（事件的渲染器） |
 | `kestrel-server` | WebUI 后端适配器（axum：SSE 推事件 + POST 收 Op） |
 
@@ -55,6 +56,29 @@ M1 是回合制终端 REPL：输入消息，agent 用 read/search/edit/shell 四
 `~/Library/Application Support/Kestrel`；[ADR-0009](docs/adr/0009-storage-layout.md)）——
 想让数据留在项目里就在启动目录建个 `.kestrel/`（opt-in），或设 `KESTREL_DATA_DIR`。
 设 `RUST_LOG=kestrel=debug` 看详细日志。
+
+## 模型启动器（把模型当 agent 的一部分来起）
+
+上面第 1 步要你手动起后端。想让 Kestrel 自己把模型起起来，就给它一份 Loadout 清单
+（[ADR-0010](docs/adr/0010-model-launcher.md)）：在 `kestrel.toml` 里设
+`loadout = "kestrel.loadout.toml"`，清单的 `[model]` 维度覆盖 `[backend]`。三种来源：
+
+- `source = "self"`——自启 llama.cpp：spawn `llama-server`，强制 `--jinja` +
+  `--host 127.0.0.1`，轮询 `/health` 就绪后再连；退出时自动 kill。`bin` / `model_path`
+  必须是**绝对路径**（白名单=显式配置），只绑回环、不自动联网（[ADR-0010 §5](docs/adr/0010-model-launcher.md)）。
+- `source = "delegate"`——委托已在跑的宿主（lms / ollama / 手起 llama-server）：可达才用，
+  不代起、不代杀。
+- `source = "connect"`——纯连接一个 `base_url`，零启动（等价 `[backend]` 现状）。
+
+清单里 `persona` / `tools` / `permission` / `crew` 等维度是 [ADR-0006](docs/adr/0006-loadout-declarative-build.md)
+的格式草案，当前**解析但不编译**（成本感知编译器随 M4 落地）。模板见
+[kestrel.example.loadout.toml](kestrel.example.loadout.toml)：
+
+```sh
+cp kestrel.example.loadout.toml kestrel.loadout.toml   # 改 bin / model_path / n_ctx
+# 在 kestrel.toml 里取消注释 loadout = "kestrel.loadout.toml"
+./target/release/kestrel                               # 启动器自动起模型、就绪后进入 REPL
+```
 
 ## WebUI（个人版）
 
