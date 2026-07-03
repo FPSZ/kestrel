@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Check, Copy, Cpu, FolderOpen, HardDrive, RefreshCw, Square } from 'lucide-react'
+import { Check, Copy, Cpu, FolderOpen, RefreshCw, Square } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { tl } from './strings'
 
@@ -21,11 +21,17 @@ type EngineStatus = { state: EngineState; base_url: string; model: string; error
 
 const DIR_KEY = 'kestrel.modelsDir'
 
+// Module-level cache: scanning a big models folder + probing ports is slow, so a
+// scan result is remembered for the session. Revisiting the page hydrates from
+// this instantly (no rescan); only the Scan button or a folder change refetches.
+// Engine status is live and always refetched on mount.
+let SCAN_CACHE: { dir: string; models: ModelsData; scan: ScanResult } | null = null
+
 /**
- * Model launcher (ADR-0010). Guided top-down flow: point at your models folder,
- * pick a model, hit Load — it runs as a local llama.cpp server (start/stop/status).
- * Discovery/launch stay loopback + whitelisted-bin (§5); the agent connects to
- * whatever base_url its config points at.
+ * Model launcher (ADR-0010). Point at your models folder, pick a model, hit Load —
+ * it runs as a local llama.cpp server (start/stop/status). Discovery/launch stay
+ * loopback + whitelisted-bin (§5); the agent connects to whatever base_url its
+ * config points at.
  */
 export function LauncherView() {
   const [dir, setDir] = useState(() => {
@@ -35,8 +41,8 @@ export function LauncherView() {
       return ''
     }
   })
-  const [models, setModels] = useState<ModelsData | null>(null)
-  const [scan, setScan] = useState<ScanResult | null>(null)
+  const [models, setModels] = useState<ModelsData | null>(SCAN_CACHE?.models ?? null)
+  const [scan, setScan] = useState<ScanResult | null>(SCAN_CACHE?.scan ?? null)
   const [status, setStatus] = useState<EngineStatus | null>(null)
   const [busy, setBusy] = useState(false)
   const [apiError, setApiError] = useState(false)
@@ -45,35 +51,49 @@ export function LauncherView() {
   const [copied, setCopied] = useState('')
 
   const loadStatus = useCallback(async () => {
-    const res = await fetch('/api/launcher/status')
-    if (res.ok) setStatus((await res.json()) as EngineStatus)
+    try {
+      const res = await fetch('/api/launcher/status')
+      if (res.ok) setStatus((await res.json()) as EngineStatus)
+    } catch {
+      /* status is best-effort */
+    }
   }, [])
 
-  const rescan = useCallback(async (d: string) => {
-    setBusy(true)
-    setApiError(false)
-    try {
-      const q = d ? `?dir=${encodeURIComponent(d)}` : ''
-      const [mRes, sRes] = await Promise.all([
-        fetch(`/api/launcher/models${q}`),
-        fetch('/api/launcher/scan'),
-      ])
-      if (!mRes.ok || !sRes.ok) throw new Error('launcher api')
-      const mData = (await mRes.json()) as ModelsData
-      setModels(mData)
-      setScan((await sRes.json()) as ScanResult)
-      if (!d && mData.dir) setDir(mData.dir) // adopt auto-detected folder
-      await loadStatus()
-    } catch {
-      setApiError(true)
-    } finally {
-      setBusy(false)
-    }
-  }, [loadStatus])
+  const scanNow = useCallback(
+    async (d: string) => {
+      setBusy(true)
+      setApiError(false)
+      try {
+        const q = d ? `?dir=${encodeURIComponent(d)}` : ''
+        const [mRes, sRes] = await Promise.all([
+          fetch(`/api/launcher/models${q}`),
+          fetch('/api/launcher/scan'),
+        ])
+        if (!mRes.ok || !sRes.ok) throw new Error('launcher api')
+        const mData = (await mRes.json()) as ModelsData
+        const sData = (await sRes.json()) as ScanResult
+        const resolvedDir = !d && mData.dir ? mData.dir : d
+        setModels(mData)
+        setScan(sData)
+        if (!d && mData.dir) setDir(mData.dir) // adopt auto-detected folder
+        SCAN_CACHE = { dir: resolvedDir, models: mData, scan: sData }
+      } catch {
+        setApiError(true)
+      } finally {
+        setBusy(false)
+      }
+    },
+    [],
+  )
 
-  // mount: initial scan with the persisted (or empty -> auto-detected) folder
+  // mount: hydrate from cache if present (instant, no rescan); always refresh live status.
   useEffect(() => {
-    void rescan(dir)
+    if (SCAN_CACHE) {
+      setDir(SCAN_CACHE.dir)
+    } else {
+      void scanNow(dir)
+    }
+    void loadStatus()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -89,13 +109,13 @@ export function LauncherView() {
     return () => clearInterval(t)
   }, [status?.state, loadStatus])
 
-  const applyDir = () => {
+  const applyScan = () => {
     try {
       localStorage.setItem(DIR_KEY, dir)
     } catch {
       /* storage unavailable */
     }
-    void rescan(dir)
+    void scanNow(dir)
   }
 
   const loadModel = async (m: ModelFile) => {
@@ -132,27 +152,13 @@ export function LauncherView() {
   const bins = scan?.binaries ?? []
   const running = scan?.running ?? []
   const list = models?.models ?? []
-  const engineActive = status && status.state !== 'stopped'
   const canLoad = !!selectedBin
 
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-4xl px-6 py-8">
-        <div className="mb-5 flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-[17px] font-semibold tracking-[-0.01em]">{tl('launcher.title')}</h2>
-            <p className="mt-1 text-[13px] leading-relaxed text-ink-3">{tl('launcher.howto')}</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => void rescan(dir)}
-            disabled={busy}
-            className="focus-ring flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-line px-2.5 text-[13px] text-ink-2 transition-colors hover:bg-surface-2 disabled:opacity-50"
-          >
-            <RefreshCw className={cn('h-[15px] w-[15px]', busy && 'animate-spin')} strokeWidth={1.8} />
-            {busy ? tl('launcher.scanning') : tl('launcher.rescan')}
-          </button>
-        </div>
+        <h2 className="text-[17px] font-semibold tracking-[-0.01em]">{tl('launcher.title')}</h2>
+        <p className="mt-1 mb-5 text-[13px] leading-relaxed text-ink-3">{tl('launcher.howto')}</p>
 
         {apiError && (
           <div className="mb-5 rounded-lg border border-crit/40 bg-crit/10 px-4 py-3 text-[13px] text-ink-2">
@@ -160,104 +166,62 @@ export function LauncherView() {
           </div>
         )}
 
-        {/* Local server — the live status hero. Directs the user down when idle. */}
-        <div
-          className={cn(
-            'mb-6 rounded-lg border px-4 py-3.5',
-            status?.state === 'running'
-              ? 'border-ok/30 bg-ok/5'
-              : status?.state === 'failed'
-                ? 'border-crit/30 bg-crit/5'
-                : 'border-line bg-surface',
-          )}
-        >
-          <div className="flex items-center gap-2">
-            <span className="text-[13px] font-semibold text-ink-2">{tl('launcher.engine.title')}</span>
-            <StateBadge state={status?.state ?? 'stopped'} />
-            {engineActive && (
-              <button
-                type="button"
-                onClick={() => void stopEngine()}
-                className="focus-ring ml-auto flex items-center gap-1.5 rounded-md border border-line px-2.5 py-1 text-[12px] text-ink-2 transition-colors hover:bg-surface-2"
-              >
-                <Square className="h-[12px] w-[12px]" strokeWidth={2} />
-                {tl('launcher.stop')}
-              </button>
-            )}
-          </div>
-          {engineActive ? (
-            <div className="mt-2 space-y-1.5 text-[12.5px]">
-              {status?.model && <div className="font-mono text-[13px] text-ink">{status.model}</div>}
-              {status?.base_url && (
-                <div className="flex items-center gap-1.5 text-ink-mute">
-                  {tl('launcher.engine.reachable')}
-                  <span className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-accent-ink">
-                    {status.base_url}
-                  </span>
-                </div>
-              )}
-              {status?.state === 'failed' && status.error && (
-                <div className="font-mono text-[12px] text-crit">{status.error}</div>
-              )}
-            </div>
-          ) : (
-            <p className="mt-1.5 text-[12.5px] text-ink-mute">{tl('launcher.engine.idle')}</p>
-          )}
-        </div>
+        {/* Local server — one-line live status strip. */}
+        <ServerStrip status={status} onStop={() => void stopEngine()} />
 
-        {/* Step 1 — models folder + engine binary */}
-        <SectionLabel text={tl('launcher.step.folder')} />
-        <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end">
-          <div className="flex-1">
-            <div className="flex gap-2">
-              <div className="focus-within:border-line-2 flex min-w-0 flex-1 items-center gap-2 rounded-md border border-line bg-surface px-2.5">
-                <FolderOpen className="h-[15px] w-[15px] shrink-0 text-ink-mute" strokeWidth={1.8} />
-                <input
-                  value={dir}
-                  onChange={(e) => setDir(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && applyDir()}
-                  placeholder={tl('launcher.dir.placeholder')}
-                  spellCheck={false}
-                  className="min-w-0 flex-1 bg-transparent py-2 font-mono text-[12.5px] text-ink-2 placeholder:text-ink-mute focus:outline-none"
-                />
-              </div>
-              <button
-                type="button"
-                onClick={applyDir}
-                className="focus-ring shrink-0 rounded-md border border-line px-3 text-[13px] text-ink-2 transition-colors hover:bg-surface-2"
-              >
-                {tl('launcher.rescan')}
-              </button>
+        {/* Models folder + one Scan action + engine binary (compact). */}
+        <div className="mb-6 mt-5">
+          <div className="flex gap-2">
+            <div className="focus-within:border-line-2 flex min-w-0 flex-1 items-center gap-2 rounded-md border border-line bg-surface px-2.5">
+              <FolderOpen className="h-[15px] w-[15px] shrink-0 text-ink-mute" strokeWidth={1.8} />
+              <input
+                value={dir}
+                onChange={(e) => setDir(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && applyScan()}
+                placeholder={tl('launcher.dir.placeholder')}
+                spellCheck={false}
+                className="min-w-0 flex-1 bg-transparent py-2 font-mono text-[12.5px] text-ink-2 placeholder:text-ink-mute focus:outline-none"
+              />
             </div>
+            <button
+              type="button"
+              onClick={applyScan}
+              disabled={busy}
+              className="focus-ring flex h-[38px] shrink-0 items-center gap-1.5 rounded-md border border-line px-3 text-[13px] text-ink-2 transition-colors hover:bg-surface-2 disabled:opacity-50"
+            >
+              <RefreshCw className={cn('h-[14px] w-[14px]', busy && 'animate-spin')} strokeWidth={1.8} />
+              {busy ? tl('launcher.scanning') : tl('launcher.rescan')}
+            </button>
           </div>
-          <div className="sm:w-56">
-            {bins.length > 0 ? (
-              <div className="flex items-center gap-2 rounded-md border border-line bg-surface px-2.5">
-                <Cpu className="h-[15px] w-[15px] shrink-0 text-ink-mute" strokeWidth={1.8} />
-                <select
-                  value={selectedBin}
-                  onChange={(e) => setSelectedBin(e.target.value)}
-                  className="w-full truncate bg-transparent py-2 font-mono text-[12.5px] text-ink-2 focus:outline-none"
-                >
-                  {bins.map((b) => (
-                    <option key={b.path} value={b.path} className="bg-bezel">
-                      {basename(b.path)}
-                      {b.on_path ? ` · ${tl('launcher.bin.onPath')}` : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
+          <div className="mt-2 flex items-center gap-1.5 text-[11.5px] text-ink-mute">
+            <Cpu className="h-[13px] w-[13px] shrink-0" strokeWidth={1.8} />
+            <span>{tl('launcher.bin.label')}</span>
+            {bins.length > 1 ? (
+              <select
+                value={selectedBin}
+                onChange={(e) => setSelectedBin(e.target.value)}
+                className="max-w-[18rem] truncate bg-transparent font-mono text-ink-3 focus:outline-none"
+              >
+                {bins.map((b) => (
+                  <option key={b.path} value={b.path} className="bg-bezel">
+                    {basename(b.path)}
+                  </option>
+                ))}
+              </select>
+            ) : bins.length === 1 ? (
+              <span className="truncate font-mono text-ink-3">
+                {basename(bins[0].path)}
+                {bins[0].on_path ? ` · ${tl('launcher.bin.onPath')}` : ''}
+              </span>
             ) : (
-              <div className="rounded-md border border-dashed border-line px-2.5 py-2 text-[12px] text-ink-mute">
-                {tl('launcher.bin.none')}
-              </div>
+              <span className="text-warn">{tl('launcher.bin.none')}</span>
             )}
           </div>
         </div>
 
-        {/* Step 2 — pick a model to load */}
-        <div className="mb-2 flex items-center justify-between">
-          <SectionLabel text={tl('launcher.step.pick')} />
+        {/* Local models */}
+        <div className="mb-2 flex items-baseline justify-between">
+          <h3 className="text-[13px] font-semibold text-ink-2">{tl('launcher.models.title')}</h3>
           {models && list.length > 0 && (
             <span className="text-[12px] text-ink-mute">
               {tl('launcher.models.meta', { n: list.length, size: fmtBytes(models.total_bytes) })}
@@ -308,18 +272,15 @@ export function LauncherView() {
         )}
 
         {/* Running engines detected on common ports */}
-        <div className="mt-8">
-          <SectionLabel text={tl('launcher.running.title')} />
-          <div className="mt-2 overflow-hidden rounded-lg border border-line">
-            {running.length === 0 ? (
-              <div className="px-4 py-4 text-[12.5px] text-ink-mute">{tl('launcher.running.empty')}</div>
-            ) : (
-              running.map((e) => (
+        {running.length > 0 && (
+          <div className="mt-8">
+            <h3 className="mb-2 text-[13px] font-semibold text-ink-2">{tl('launcher.running.title')}</h3>
+            <div className="overflow-hidden rounded-lg border border-line">
+              {running.map((e) => (
                 <div
                   key={e.base_url}
                   className="flex items-center gap-3 border-b border-line px-4 py-2.5 last:border-b-0"
                 >
-                  <HardDrive className="h-[15px] w-[15px] shrink-0 text-ink-mute" strokeWidth={1.8} />
                   <Pill tone="accent">{e.kind}</Pill>
                   <span className="truncate font-mono text-[12.5px] text-ink-2">{e.base_url}</span>
                   <span className="ml-auto shrink-0 truncate text-[12px] text-ink-mute">
@@ -339,46 +300,73 @@ export function LauncherView() {
                     {copied === e.base_url ? tl('launcher.copied') : tl('launcher.running.use')}
                   </button>
                 </div>
-              ))
-            )}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   )
 }
 
-function SectionLabel({ text }: { text: string }) {
-  return <div className="text-[11.5px] font-semibold uppercase tracking-wide text-ink-3">{text}</div>
+/** One-line live status strip for the engine started from here. */
+function ServerStrip({ status, onStop }: { status: EngineStatus | null; onStop: () => void }) {
+  const state = status?.state ?? 'stopped'
+  const active = state === 'loading' || state === 'running'
+  const tone =
+    state === 'running'
+      ? 'border-ok/30 bg-ok/5'
+      : state === 'failed'
+        ? 'border-crit/30 bg-crit/5'
+        : 'border-line bg-surface'
+  const dot =
+    state === 'running'
+      ? 'text-ok'
+      : state === 'loading'
+        ? 'text-warn'
+        : state === 'failed'
+          ? 'text-crit'
+          : 'text-ink-mute'
+
+  return (
+    <div className={cn('flex items-center gap-2.5 rounded-lg border px-3.5 py-2.5 text-[12.5px]', tone)}>
+      <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full bg-current', dot, state === 'loading' && 'animate-pulse')} />
+      <span className="shrink-0 font-medium text-ink-2">{tl('launcher.engine.title')}</span>
+      {active && status ? (
+        <>
+          {status.model && <span className="truncate font-mono text-ink">{status.model}</span>}
+          {status.base_url && (
+            <span className="shrink-0 rounded bg-surface-2 px-1.5 py-0.5 font-mono text-accent-ink">
+              {status.base_url}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={onStop}
+            className="focus-ring ml-auto flex shrink-0 items-center gap-1.5 rounded-md border border-line px-2.5 py-1 text-[12px] text-ink-2 transition-colors hover:bg-surface-2"
+          >
+            <Square className="h-[11px] w-[11px]" strokeWidth={2} />
+            {tl('launcher.stop')}
+          </button>
+        </>
+      ) : (
+        <span className="truncate text-ink-mute">
+          {state === 'failed' && status?.error ? status.error : tl('launcher.engine.idle')}
+        </span>
+      )}
+    </div>
+  )
 }
 
 function Pill({ children, tone }: { children: React.ReactNode; tone: 'plain' | 'accent' }) {
   return (
     <span
       className={cn(
-        'rounded px-1.5 py-0.5 font-mono text-[11px]',
-        tone === 'accent'
-          ? 'border border-accent/25 text-accent-ink'
-          : 'bg-surface-2 text-ink-3',
+        'shrink-0 rounded px-1.5 py-0.5 font-mono text-[11px]',
+        tone === 'accent' ? 'border border-accent/25 text-accent-ink' : 'bg-surface-2 text-ink-3',
       )}
     >
       {children}
-    </span>
-  )
-}
-
-function StateBadge({ state }: { state: EngineState }) {
-  const map: Record<EngineState, [string, string]> = {
-    stopped: [tl('launcher.engine.stopped'), 'text-ink-mute'],
-    loading: [tl('launcher.engine.loading'), 'text-warn'],
-    running: [tl('launcher.engine.running'), 'text-ok'],
-    failed: [tl('launcher.engine.failed'), 'text-crit'],
-  }
-  const [label, color] = map[state] ?? map.stopped
-  return (
-    <span className={cn('flex items-center gap-1.5 text-[12px] font-medium', color)}>
-      <span className={cn('h-1.5 w-1.5 rounded-full bg-current', state === 'loading' && 'animate-pulse')} />
-      {label}
     </span>
   )
 }

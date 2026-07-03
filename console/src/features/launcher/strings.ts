@@ -27,8 +27,6 @@ const EN: Dict = {
   'launcher.engine.idle': 'Not started. Pick a model below and hit Load to run it here.',
   'launcher.stop': 'Stop',
   'launcher.howto': 'Pick a model and hit Load — it starts a local llama.cpp server on 127.0.0.1.',
-  'launcher.step.folder': '1 · Models folder',
-  'launcher.step.pick': '2 · Pick a model to load',
 
   'launcher.models.title': 'Local models',
   'launcher.models.meta': '{n} models · {size}',
@@ -73,8 +71,6 @@ const ZH: Dict = {
   'launcher.engine.idle': '还没启动。从下面选一个模型，点「启动」就能把它跑起来。',
   'launcher.stop': '停止',
   'launcher.howto': '选一个模型点「启动」，它会在 127.0.0.1 起一个本地 llama.cpp 服务器。',
-  'launcher.step.folder': '1 · 模型目录',
-  'launcher.step.pick': '2 · 选一个模型加载',
 
   'launcher.models.title': '本地模型',
   'launcher.models.meta': '{n} 个模型 · {size}',

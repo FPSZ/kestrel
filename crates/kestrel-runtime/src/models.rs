@@ -7,6 +7,7 @@
 //! kv_count(u64) + kv_count 个 KV 元数据项。我们只取 `general.*` 少数键（都排在
 //! 大数组如 tokenizer 之前），遇到超大数组即早退，保证有界、不把整文件读进内存。
 
+use std::collections::HashSet;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
@@ -50,10 +51,41 @@ pub fn default_models_dir() -> Option<std::path::PathBuf> {
 /// 目录不存在或不可读时返回空。按显示名排序。
 #[must_use]
 pub fn discover_models(root: &Path) -> Vec<ModelFile> {
-    let mut out = Vec::new();
-    walk(root, 0, 8, &mut out);
+    let mut raw = Vec::new();
+    walk(root, 0, 8, &mut raw);
+    let mut out = dedup_by_identity(raw);
     out.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
     out
+}
+
+/// 按文件身份去重：硬链接 / 多路径指向同一物理文件只保留第一个。
+fn dedup_by_identity(list: Vec<ModelFile>) -> Vec<ModelFile> {
+    let mut seen = HashSet::new();
+    let mut out = Vec::with_capacity(list.len());
+    for m in list {
+        if seen.insert(identity_key(&m)) {
+            out.push(m);
+        }
+    }
+    out
+}
+
+/// 文件身份键：Unix 用 (dev, ino) 精确判硬链接；其他平台退回 (文件名小写, 字节大小)
+/// —— GGUF 模型的「同名同字节」实际唯一，足以合并硬链接 / 多路径的重复项。
+fn identity_key(m: &ModelFile) -> String {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        if let Ok(md) = std::fs::metadata(&m.path) {
+            return format!("id:{}:{}", md.dev(), md.ino());
+        }
+    }
+    let name = Path::new(&m.path)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    format!("ns:{name}:{}", m.size_bytes)
 }
 
 /// 有界深度递归收集 gguf。
@@ -416,5 +448,23 @@ mod tests {
     fn discover_missing_dir_is_empty() {
         let p = std::env::temp_dir().join("kestrel-no-such-models-dir-xyz");
         assert!(discover_models(&p).is_empty());
+    }
+
+    #[test]
+    fn dedup_collapses_hardlinked_same_name_size() {
+        let mk = |path: &str, size: u64| ModelFile {
+            path: path.to_owned(),
+            name: "X".to_owned(),
+            arch: String::new(),
+            quant: String::new(),
+            params: String::new(),
+            size_bytes: size,
+        };
+        // 不同路径、同名同大小（硬链接 / 多路径）-> 合并成一个。
+        let out = dedup_by_identity(vec![mk("/a/x.gguf", 100), mk("/b/x.gguf", 100)]);
+        assert_eq!(out.len(), 1);
+        // 同名不同大小 -> 视为不同，都保留。
+        let out2 = dedup_by_identity(vec![mk("/a/x.gguf", 100), mk("/b/x.gguf", 200)]);
+        assert_eq!(out2.len(), 2);
     }
 }
