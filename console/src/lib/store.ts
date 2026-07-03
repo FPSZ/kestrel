@@ -134,12 +134,32 @@ export function useConversation(resetKey = 0): ConversationState & { status: Str
 
   useEffect(() => {
     setState(initialState) // fresh session / reconnect: drop the old fold
+
+    // Anti-flood: a runaway reasoning stream can emit thousands of deltas/sec.
+    // Buffer incoming events and fold the whole batch in ONE setState per animation
+    // frame, so the render rate stays ~60fps no matter how fast events arrive
+    // (otherwise the browser locks up re-rendering per-token). Receive time is
+    // stamped on arrival (not at flush), so timestamps stay accurate.
+    let buffer: KestrelEvent[] = []
+    let raf = 0
+    const flush = () => {
+      raf = 0
+      if (buffer.length === 0) return
+      const batch = buffer
+      buffer = []
+      setState((s) => batch.reduce(fold, s))
+    }
     const unsub = client.subscribe(
-      // stamp receive time at the SSE edge (kept out of pure fold, passed as data)
-      (event) => setState((s) => fold(s, { ...event, ts: event.ts ?? Date.now() })),
+      (event) => {
+        buffer.push({ ...event, ts: event.ts ?? Date.now() })
+        if (raf === 0) raf = requestAnimationFrame(flush)
+      },
       (st) => setStatus(st),
     )
-    return unsub
+    return () => {
+      if (raf !== 0) cancelAnimationFrame(raf)
+      unsub()
+    }
   }, [resetKey])
 
   return { ...state, status }

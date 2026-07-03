@@ -5,6 +5,7 @@
   "composer.stopTitle": "打断当前回合（会杀掉正在执行的命令）",
   "composer.removeImage": "移除图片",
   "chat.working": "处理中",
+  "chat.awaitingApproval": "等待你在下方批准后继续",
 
   "think.title": "思考强度（当前模型支持 开/关）",
   "think.on.label": "思考 开",

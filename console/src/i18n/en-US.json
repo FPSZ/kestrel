@@ -5,6 +5,7 @@
   "composer.stopTitle": "Interrupt the current turn (kills any running command)",
   "composer.removeImage": "Remove image",
   "chat.working": "working",
+  "chat.awaitingApproval": "Waiting for your approval below to continue",
 
   "think.title": "Thinking strength (this model supports on/off)",
   "think.on.label": "Think on",

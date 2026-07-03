@@ -17,6 +17,7 @@ import {
   Zap,
   ClipboardList,
   X,
+  AlertTriangle,
 } from 'lucide-react'
 import { client } from '@/lib/client'
 import type { Block } from '@/lib/store'
@@ -155,6 +156,12 @@ export function ChatView({ blocks, turnActive }: { blocks: Block[]; turnActive: 
   // button so the user can always bail out.
   const showStop = turnActive && !text.trim()
 
+  // A turn paused on a pending approval looks identical to "still working" but
+  // needs YOUR input to continue — surface it loudly so it doesn't read as a hang.
+  const awaitingApproval = blocks.some(
+    (b) => b.kind === 'tool' && b.status === 'pending_approval',
+  )
+
   const slashQuery = text.startsWith('/') ? text.slice(1) : null
   const firstTok = (slashQuery ?? '').split(/\s+/)[0].toLowerCase()
   const matched = slashQuery !== null ? COMMANDS.filter((c) => c.name.startsWith(firstTok)) : []
@@ -167,12 +174,18 @@ export function ChatView({ blocks, turnActive }: { blocks: Block[]; turnActive: 
         <div ref={scrollRef} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto flex min-w-0 max-w-3xl flex-col gap-4 px-4 py-6">
             <Conversation blocks={blocks} turnActive={turnActive} />
-            {turnActive && (
-              <div className="flex items-center gap-2 text-[13px] text-ink-mute">
-                <Loader className="h-3.5 w-3.5 animate-spin" strokeWidth={2} />
-                {t('chat.working')}
-              </div>
-            )}
+            {turnActive &&
+              (awaitingApproval ? (
+                <div className="flex items-center gap-2 rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-[13px] font-medium text-warn">
+                  <AlertTriangle className="h-4 w-4 shrink-0" strokeWidth={2} />
+                  {t('chat.awaitingApproval')}
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-[13px] text-ink-mute">
+                  <Loader className="h-3.5 w-3.5 animate-spin" strokeWidth={2} />
+                  {t('chat.working')}
+                </div>
+              ))}
           </div>
         </div>
       )}
