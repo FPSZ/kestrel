@@ -19,6 +19,7 @@
 
 use std::path::{Path, PathBuf};
 
+use kestrel_protocol::SecretString;
 use serde::{Deserialize, Serialize};
 
 use crate::StoreError;
@@ -90,8 +91,8 @@ pub struct ModelSpec {
     pub gpu_layers: String,
     /// 追加透传给 `llama-server` 的参数（高级逃生舱）。
     pub extra_args: Vec<String>,
-    /// API key（委托宿主需 token 时）。SecretString 语义：不入事件日志 / 审计 / UI / 提交。
-    pub api_key: String,
+    /// API key（委托宿主需 token 时）。脱敏类型：不入事件日志 / 审计 / UI / 提交（地基 #7）。
+    pub api_key: SecretString,
 }
 
 impl Default for ModelSpec {
@@ -107,7 +108,7 @@ impl Default for ModelSpec {
             n_ctx: 16_384,
             gpu_layers: "auto".to_owned(),
             extra_args: Vec::new(),
-            api_key: String::new(),
+            api_key: SecretString::default(),
         }
     }
 }

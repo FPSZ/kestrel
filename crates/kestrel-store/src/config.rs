@@ -5,6 +5,7 @@
 
 use std::path::{Path, PathBuf};
 
+use kestrel_protocol::SecretString;
 use serde::{Deserialize, Serialize};
 
 use crate::StoreError;
@@ -42,8 +43,8 @@ pub struct BackendConfig {
     pub kind: String,
     /// OpenAI 兼容端点基址（llama-server 或 LM Studio），不含 `/v1`。
     pub base_url: String,
-    /// API key（本地后端通常留空）。
-    pub api_key: String,
+    /// API key（本地后端通常留空）。脱敏类型：不入 Debug / 序列化 / 日志 / UI（地基 #7）。
+    pub api_key: SecretString,
     /// 模型名（llama-server 可任意；LM Studio 需匹配已加载模型）。
     pub model: String,
     /// 上下文长度兜底值。探针（llamacpp/lmstudio）成功时以实测值覆盖。
@@ -68,7 +69,7 @@ impl Default for BackendConfig {
         Self {
             kind: "openai".to_owned(),
             base_url: "http://127.0.0.1:8080".to_owned(),
-            api_key: String::new(),
+            api_key: SecretString::default(),
             model: "local".to_owned(),
             n_ctx: 16_384,
         }

@@ -19,6 +19,7 @@ pub mod event;
 pub mod message;
 pub mod op;
 pub mod risk;
+pub mod secret;
 pub mod tool_spec;
 
 pub use completion::{BackendCapabilities, CompletionChunk, CompletionRequest};
@@ -26,4 +27,5 @@ pub use event::{CrewRole, Event, EventPayload, SessionId};
 pub use message::{Message, Role, ToolCall};
 pub use op::{AgentMode, Op};
 pub use risk::{Decision, RiskLevel};
+pub use secret::SecretString;
 pub use tool_spec::ToolSpec;

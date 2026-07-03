@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use kestrel_core::{Agent, AgentConfig, PermissionEngine, TurnLimits};
-use kestrel_protocol::{Event, Op, SessionId};
+use kestrel_protocol::{Event, Op, SecretString, SessionId};
 use kestrel_runtime::EngineHandle;
 use kestrel_store::{Config, JsonlStore, Layout, Loadout};
 use tokio::sync::mpsc;
@@ -154,8 +154,8 @@ struct Engine {
     kind: String,
     /// 后端连接的 `base_url`。
     base_url: String,
-    /// API key（本地后端通常空）。
-    api_key: String,
+    /// API key（本地后端通常空）。脱敏类型（地基 #7）。
+    api_key: SecretString,
     /// 模型标识。
     model: String,
     /// 上下文长度兜底（probe 成功以实测覆盖）。

@@ -9,7 +9,7 @@
 
 use kestrel_core::CoreError;
 use kestrel_core::ports::{CompletionStream, LlmBackend};
-use kestrel_protocol::{BackendCapabilities, CompletionRequest, SessionId};
+use kestrel_protocol::{BackendCapabilities, CompletionRequest, SecretString, SessionId};
 
 use crate::openai_compat::OpenAiCompatBackend;
 
@@ -18,7 +18,7 @@ use crate::openai_compat::OpenAiCompatBackend;
 pub struct LlamaCppBackend {
     inner: OpenAiCompatBackend,
     base_url: String,
-    api_key: String,
+    api_key: SecretString,
     model: String,
     n_ctx_fallback: u32,
     http: reqwest::Client,
@@ -28,7 +28,12 @@ impl LlamaCppBackend {
     /// 构造。`base_url` 不含 `/v1`（如 `http://127.0.0.1:8080`）。
     /// `n_ctx_fallback` 在 `/props` 探测失败时兜底。
     #[must_use]
-    pub fn new(base_url: impl Into<String>, api_key: String, model: String, n_ctx: u32) -> Self {
+    pub fn new(
+        base_url: impl Into<String>,
+        api_key: SecretString,
+        model: String,
+        n_ctx: u32,
+    ) -> Self {
         let base_url = base_url.into().trim_end_matches('/').to_owned();
         Self {
             inner: OpenAiCompatBackend::new(
@@ -57,7 +62,7 @@ impl LlmBackend for LlamaCppBackend {
         let url = format!("{}/props", self.base_url);
         let mut builder = self.http.get(&url);
         if !self.api_key.is_empty() {
-            builder = builder.bearer_auth(&self.api_key);
+            builder = builder.bearer_auth(self.api_key.expose());
         }
         let n_ctx = match builder.send().await {
             Ok(resp) if resp.status().is_success() => resp

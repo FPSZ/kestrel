@@ -11,14 +11,14 @@ use futures::StreamExt;
 use kestrel_core::CoreError;
 use kestrel_core::ports::{CompletionStream, LlmBackend};
 use kestrel_protocol::{
-    BackendCapabilities, CompletionChunk, CompletionRequest, Message, Role, SessionId,
+    BackendCapabilities, CompletionChunk, CompletionRequest, Message, Role, SecretString, SessionId,
 };
 
 /// OpenAI 兼容流式后端。
 #[derive(Debug, Clone)]
 pub struct OpenAiCompatBackend {
     base_url: String,
-    api_key: String,
+    api_key: SecretString,
     model: String,
     n_ctx: u32,
     http: reqwest::Client,
@@ -27,7 +27,12 @@ pub struct OpenAiCompatBackend {
 impl OpenAiCompatBackend {
     /// 构造。`base_url` 不含 `/v1`（如 `http://127.0.0.1:8080`）。
     #[must_use]
-    pub fn new(base_url: impl Into<String>, api_key: String, model: String, n_ctx: u32) -> Self {
+    pub fn new(
+        base_url: impl Into<String>,
+        api_key: SecretString,
+        model: String,
+        n_ctx: u32,
+    ) -> Self {
         Self {
             base_url: base_url.into().trim_end_matches('/').to_owned(),
             api_key,
@@ -76,7 +81,7 @@ impl LlmBackend for OpenAiCompatBackend {
         let url = format!("{}/v1/chat/completions", self.base_url);
         let mut builder = self.http.post(&url).json(&self.build_body(&req));
         if !self.api_key.is_empty() {
-            builder = builder.bearer_auth(&self.api_key);
+            builder = builder.bearer_auth(self.api_key.expose());
         }
         let resp = builder
             .send()

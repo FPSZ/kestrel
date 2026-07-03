@@ -29,6 +29,7 @@ pub mod probe;
 use std::sync::Arc;
 
 use kestrel_core::ports::LlmBackend;
+use kestrel_protocol::SecretString;
 
 pub use llamacpp::LlamaCppBackend;
 pub use lmstudio::LmStudioBackend;
@@ -46,7 +47,7 @@ pub use openai_compat::OpenAiCompatBackend;
 pub fn build(
     kind: &str,
     base_url: impl Into<String>,
-    api_key: String,
+    api_key: SecretString,
     model: String,
     n_ctx: u32,
 ) -> Arc<dyn LlmBackend> {
