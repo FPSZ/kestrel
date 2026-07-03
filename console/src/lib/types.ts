@@ -27,8 +27,11 @@ export interface KestrelEvent {
   ts?: number
 }
 
+/** Per-turn run mode (mirrors kestrel-protocol AgentMode). ask=询问, auto=全部执行, plan=计划. */
+export type AgentMode = 'ask' | 'auto' | 'plan'
+
 export type Op =
-  | { type: 'user_input'; text: string; think?: boolean }
+  | { type: 'user_input'; text: string; think?: boolean; mode?: AgentMode }
   | { type: 'approve'; call_id: string }
   | { type: 'deny'; call_id: string; reason: string | null }
   | { type: 'cancel' }

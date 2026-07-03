@@ -1,0 +1,50 @@
+{
+  "composer.placeholder": "Message Kestrel…  type / for commands",
+  "composer.send": "Send",
+  "composer.stop": "Stop",
+  "composer.stopTitle": "Interrupt the current turn (kills any running command)",
+  "chat.working": "working",
+
+  "think.title": "Thinking strength (this model supports on/off)",
+  "think.on.label": "Think on",
+  "think.on.hint": "reason first",
+  "think.off.label": "Think off",
+  "think.off.hint": "answer now",
+  "think.streaming": "Thinking…",
+  "think.label": "Thinking",
+
+  "mode.title": "Run mode: ask / execute all / plan",
+  "mode.ask.label": "Ask",
+  "mode.ask.hint": "writes ask",
+  "mode.auto.label": "Execute all",
+  "mode.auto.hint": "risky still asks",
+  "mode.plan.label": "Plan",
+  "mode.plan.hint": "read-only",
+
+  "cmd.think.desc": "toggle thinking",
+  "cmd.mode.desc": "run mode",
+  "cmd.stop.desc": "interrupt the turn",
+  "cmd.help.desc": "show all commands",
+  "palette.noMatch": "no such command — type / to see all",
+
+  "empty.title": "Kestrel",
+  "empty.body": "Your local-model agent. Ask it to read files, search, edit code, or run commands in the working directory. Type / for commands.",
+
+  "tool.approveAction": "Approve {risk} action?",
+  "tool.approve": "Approve",
+  "tool.deny": "Deny",
+  "tool.approving": "Approving…",
+  "tool.declining": "Declining…",
+  "tool.expand": "click to expand",
+  "tool.collapse": "collapse",
+
+  "status.running": "running",
+  "status.ok": "ok",
+  "status.error": "error",
+  "status.needsApproval": "needs approval",
+
+  "risk.read_only": "read-only",
+  "risk.mutating": "mutating",
+  "risk.destructive": "destructive",
+  "risk.external": "external"
+}

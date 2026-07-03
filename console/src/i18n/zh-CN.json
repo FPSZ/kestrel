@@ -1,0 +1,50 @@
+{
+  "composer.placeholder": "给 Kestrel 发消息…  输入 / 用命令",
+  "composer.send": "发送",
+  "composer.stop": "停止",
+  "composer.stopTitle": "打断当前回合（会杀掉正在执行的命令）",
+  "chat.working": "处理中",
+
+  "think.title": "思考强度（当前模型支持 开/关）",
+  "think.on.label": "思考 开",
+  "think.on.hint": "先推理",
+  "think.off.label": "思考 关",
+  "think.off.hint": "直接答",
+  "think.streaming": "思考中…",
+  "think.label": "思考过程",
+
+  "mode.title": "运行模式：询问 / 全部执行 / 计划",
+  "mode.ask.label": "询问",
+  "mode.ask.hint": "写操作必问",
+  "mode.auto.label": "全部执行",
+  "mode.auto.hint": "危险仍问",
+  "mode.plan.label": "计划",
+  "mode.plan.hint": "只读·只出计划",
+
+  "cmd.think.desc": "思考开关",
+  "cmd.mode.desc": "运行模式",
+  "cmd.stop.desc": "打断当前回合",
+  "cmd.help.desc": "显示所有命令",
+  "palette.noMatch": "无此命令 — 输入 / 看全部",
+
+  "empty.title": "Kestrel",
+  "empty.body": "你的本地模型 agent。让它读文件、搜索、改代码或在工作目录里跑命令。输入 / 使用命令。",
+
+  "tool.approveAction": "批准 {risk} 动作？",
+  "tool.approve": "批准",
+  "tool.deny": "拒绝",
+  "tool.approving": "批准中…",
+  "tool.declining": "拒绝中…",
+  "tool.expand": "点击展开",
+  "tool.collapse": "收起",
+
+  "status.running": "运行中",
+  "status.ok": "完成",
+  "status.error": "出错",
+  "status.needsApproval": "待审批",
+
+  "risk.read_only": "只读",
+  "risk.mutating": "可变写入",
+  "risk.destructive": "破坏性",
+  "risk.external": "外联"
+}

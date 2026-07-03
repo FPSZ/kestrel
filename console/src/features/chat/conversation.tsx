@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Terminal, Check, X, AlertTriangle, Loader, ChevronRight } from 'lucide-react'
 import { client } from '@/lib/client'
 import type { Block, ToolBlock } from '@/lib/store'
+import { t } from '@/i18n'
 import { Markdown } from './markdown'
 
 /**
@@ -106,7 +107,9 @@ function Thinking({ text, live }: { text: string; live: boolean }) {
           className={`h-4 w-4 transition-transform ${open ? 'rotate-90' : ''}`}
           strokeWidth={2}
         />
-        <span className={live ? 'shimmer' : ''}>{live ? 'Thinking...' : 'Thinking'}</span>
+        <span className={live ? 'shimmer' : ''}>
+          {live ? t('think.streaming') : t('think.label')}
+        </span>
       </button>
       {open && (
         <div className="mt-1.5 ml-1.5 whitespace-pre-wrap break-words border-l border-line-2 pl-3 text-[14px] leading-relaxed text-ink-mute">
@@ -170,7 +173,7 @@ function Approval({ block }: { block: ToolBlock }) {
     return (
       <div className="flex items-center gap-2 px-3 py-2.5 font-sans text-[12.5px] text-ink-3">
         <Loader className="h-3.5 w-3.5 shrink-0 animate-spin" strokeWidth={2} />
-        {sent === 'approve' ? 'Approving...' : 'Declining...'}
+        {sent === 'approve' ? t('tool.approving') : t('tool.declining')}
       </div>
     )
   }
@@ -178,8 +181,8 @@ function Approval({ block }: { block: ToolBlock }) {
   return (
     <div className="flex items-center gap-2 px-3 py-2.5 font-sans text-[12.5px]">
       <AlertTriangle className="h-4 w-4 shrink-0 text-warn" strokeWidth={1.9} />
-      <span className="text-ink-2">
-        Approve <span className="font-semibold text-warn">{block.risk}</span> action?
+      <span className="font-medium text-warn">
+        {t('tool.approveAction', { risk: block.risk ? t(`risk.${block.risk}`) : '' })}
       </span>
       <div className="ml-auto flex items-center gap-1.5">
         <button
@@ -187,14 +190,14 @@ function Approval({ block }: { block: ToolBlock }) {
           onClick={approve}
           className="focus-ring flex items-center gap-1 rounded-md bg-accent px-2.5 py-1 font-medium text-desktop transition-colors hover:bg-accent-2"
         >
-          <Check className="h-3.5 w-3.5" strokeWidth={2.2} /> Approve
+          <Check className="h-3.5 w-3.5" strokeWidth={2.2} /> {t('tool.approve')}
         </button>
         <button
           type="button"
           onClick={deny}
           className="focus-ring flex items-center gap-1 rounded-md border border-line-2 px-2.5 py-1 font-medium text-ink-2 transition-colors hover:bg-surface"
         >
-          <X className="h-3.5 w-3.5" strokeWidth={2.2} /> Deny
+          <X className="h-3.5 w-3.5" strokeWidth={2.2} /> {t('tool.deny')}
         </button>
       </div>
     </div>
@@ -206,23 +209,23 @@ function StatusBadge({ status }: { status: ToolBlock['status'] }) {
     case 'running':
       return (
         <span className="flex items-center gap-1 text-ink-mute">
-          <Loader className="h-3 w-3 animate-spin" strokeWidth={2} /> running
+          <Loader className="h-3 w-3 animate-spin" strokeWidth={2} /> {t('status.running')}
         </span>
       )
     case 'ok':
       return (
         <span className="flex items-center gap-1 text-ok">
-          <Check className="h-3 w-3" strokeWidth={2.4} /> ok
+          <Check className="h-3 w-3" strokeWidth={2.4} /> {t('status.ok')}
         </span>
       )
     case 'error':
       return (
         <span className="flex items-center gap-1 text-crit">
-          <X className="h-3 w-3" strokeWidth={2.4} /> error
+          <X className="h-3 w-3" strokeWidth={2.4} /> {t('status.error')}
         </span>
       )
     case 'pending_approval':
-      return <span className="text-accent-ink">needs approval</span>
+      return <span className="text-accent-ink">{t('status.needsApproval')}</span>
   }
 }
 
@@ -248,7 +251,7 @@ function ArgsBlock({ args }: { args: unknown }) {
   return (
     <div
       onClick={() => setOpen((v) => !v)}
-      title={open ? 'collapse' : 'click to expand'}
+      title={open ? t('tool.collapse') : t('tool.expand')}
       className="cursor-pointer border-b border-line px-3 py-1.5 transition-colors hover:bg-surface/40"
     >
       <pre
