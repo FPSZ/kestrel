@@ -7,6 +7,7 @@ import { SettingsView } from '@/features/settings/settings-view'
 import { LauncherView } from '@/features/launcher/launcher-view'
 import { useConversation } from '@/lib/store'
 import { useHealth } from '@/lib/use-health'
+import { client } from '@/lib/client'
 import { t } from '@/i18n'
 
 const TITLE_KEYS: Record<string, string> = {
@@ -29,8 +30,13 @@ export function AppShell() {
   const [active, setActive] = useState('chat')
   // which persisted conversation to replay; null = the live current session.
   const [openedSession, setOpenedSession] = useState<string | null>(null)
-  const convo = useConversation()
+  // bumped on "new conversation" to reset + reconnect the folded live stream.
+  const [convoGen, setConvoGen] = useState(0)
+  // the live session id, set instantly on new-conversation (health polls slowly).
+  const [currentOverride, setCurrentOverride] = useState<string | null>(null)
+  const convo = useConversation(convoGen)
   const health = useHealth()
+  const currentSession = currentOverride ?? health?.session
 
   const navigate = (id: string) => {
     setActive(id)
@@ -38,8 +44,19 @@ export function AppShell() {
   }
   const openSession = (id: string | null) => {
     setActive('chat')
-    // selecting the current live session (id === health.session) means "go live".
-    setOpenedSession(id && id === health?.session ? null : id)
+    // selecting the current live session means "go live".
+    setOpenedSession(id && id === currentSession ? null : id)
+  }
+  const newConversation = async () => {
+    try {
+      const id = await client.newSession()
+      setCurrentOverride(id)
+      setActive('chat')
+      setOpenedSession(null)
+      setConvoGen((g) => g + 1) // reconnect + reset fold to the new empty session
+    } catch {
+      /* server unavailable - leave state untouched */
+    }
   }
 
   const replaying = active === 'chat' && openedSession !== null
@@ -60,9 +77,10 @@ export function AppShell() {
             collapsed={collapsed}
             active={active}
             openedSession={openedSession}
-            currentSession={health?.session}
+            currentSession={currentSession}
             onNavigate={navigate}
             onOpenSession={openSession}
+            onNewConversation={newConversation}
           />
           <main className="min-h-0 flex-1 overflow-hidden p-1.5 pl-0">
             <div className="content-bezel flex h-full min-h-0 flex-col overflow-hidden">

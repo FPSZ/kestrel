@@ -121,19 +121,26 @@ export function fold(state: ConversationState, event: KestrelEvent): Conversatio
   return { blocks, turnActive, lastSeq: event.seq }
 }
 
-/** Subscribe to the live stream and maintain folded conversation state. */
-export function useConversation(): ConversationState & { status: StreamStatus } {
+/** Subscribe to the live stream and maintain folded conversation state.
+ *
+ * `resetKey` forces a fresh subscription + a fold reset: on "new conversation"
+ * the server rotates its session and restarts seq at 0, which the seq-dedup
+ * would otherwise drop against the old session's high lastSeq. Bumping the key
+ * closes the old EventSource, clears the fold, and re-subscribes to the new
+ * (empty) session snapshot. */
+export function useConversation(resetKey = 0): ConversationState & { status: StreamStatus } {
   const [state, setState] = useState(initialState)
   const [status, setStatus] = useState<StreamStatus>('connecting')
 
   useEffect(() => {
+    setState(initialState) // fresh session / reconnect: drop the old fold
     const unsub = client.subscribe(
       // stamp receive time at the SSE edge (kept out of pure fold, passed as data)
       (event) => setState((s) => fold(s, { ...event, ts: event.ts ?? Date.now() })),
       (st) => setStatus(st),
     )
     return unsub
-  }, [])
+  }, [resetKey])
 
   return { ...state, status }
 }

@@ -54,6 +54,10 @@
   "nav.current": "当前",
   "nav.noSessions": "还没有对话",
   "nav.conversations": "对话列表",
+  "nav.new": "新建对话",
+  "nav.archive": "归档（从列表隐藏）",
+  "nav.delete": "从本地删除",
+  "nav.confirmDelete": "确认删除？",
   "nav.localMachine": "本机",
 
   "session.loading": "加载对话中…",

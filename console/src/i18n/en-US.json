@@ -54,6 +54,10 @@
   "nav.current": "live",
   "nav.noSessions": "no conversations yet",
   "nav.conversations": "conversations",
+  "nav.new": "New conversation",
+  "nav.archive": "Archive (hide from list)",
+  "nav.delete": "Delete from disk",
+  "nav.confirmDelete": "Delete?",
   "nav.localMachine": "local machine",
 
   "session.loading": "Loading conversation…",

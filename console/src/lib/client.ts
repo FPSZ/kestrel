@@ -59,6 +59,23 @@ class KestrelClient {
     return (await res.json()) as string[]
   }
 
+  /** Start a fresh conversation: the server rotates its active session (clears
+   *  core history) and returns the new id. Callers should reconnect the event
+   *  stream afterwards so the fold resets to the empty session. */
+  async newSession(): Promise<string> {
+    const res = await fetch('/api/sessions', { method: 'POST' })
+    if (!res.ok) throw new Error(`newSession failed: ${res.status}`)
+    const { id } = (await res.json()) as { id: string }
+    return id
+  }
+
+  /** Delete a persisted session's log file from disk. Rejected (409) for the
+   *  active session. */
+  async deleteSession(id: string): Promise<void> {
+    const res = await fetch(`/api/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' })
+    if (!res.ok) throw new Error(`deleteSession failed: ${res.status}`)
+  }
+
   async sessionEvents(id: string): Promise<KestrelEvent[]> {
     const res = await fetch(`/api/sessions/${encodeURIComponent(id)}/events`)
     if (!res.ok) throw new Error(`sessionEvents failed: ${res.status}`)
