@@ -22,7 +22,7 @@
 | 3 | **结构化错误分类**（`ErrorCode`+params，不产句子） | core 里散落几百个英文错误串，既不可测也不可本地化 | 定义稳定错误枚举，边缘渲染 | 已定 | ADR-0008 |
 | 4 | **设计令牌**（无硬编码颜色/间距/字号/圆角） | 换主题/做浅色模式要改每个组件——视觉版的硬编码地狱 | 所有视觉值进 `@theme` 令牌；组件只引令牌 | 已定 | AGENTS §5（视觉版 i18n） |
 | 5 | **core 确定性** | 事件流里混入时钟/随机，回放 harness 直接失效——测试地基塌 | 禁 wallclock/random/env 读进影响事件流的 core 路径；非确定性作为**数据**在 IO 边缘捕获后进入 | 已定 | AGENTS §5 |
-| 6 | **事件日志前向兼容** | 第一次改 `Event` 形状就让所有人历史会话 + 全部 fixture 反序列化失败 | `schema_version` 信封 + 容忍解析（未知字段/变体不 fail）+ **只增不改不复用**字段 | 需 ADR（ADR-0011） | AGENTS §5 + ADR-0011 |
+| 6 | **事件日志前向兼容** | 第一次改 `Event` 形状就让所有人历史会话 + 全部 fixture 反序列化失败 | `schema_version` 信封 + 容忍解析（未知字段/变体不 fail）+ **只增不改不复用**字段 | 已定（ADR-0011） | AGENTS §5 + ADR-0011 |
 | 7 | **密钥处理** | api_key 之类混进事件日志/tracing/UI/提交，回填要审每个序列化与打印点 | `SecretString` 型（不 Debug 打印）；只从 env / OS store 取；永不入事件日志/日志/UI/提交；显示脱敏 | 已定（强化安全红线） | AGENTS §5 + §7 |
 | 8 | **时间戳** | 本地时间入库、按语言手拼日期，回放断言随时区飘 | UTC 存、边缘按 locale 格式化、回放断言排除时间戳 | 已定 | AGENTS §5（配合 ADR-0008） |
 | 9 | **日志 vs UI 分离** | "日志英文"和"UI 本地化"混为一谈，要么日志被翻译、要么 UI 硬编码英文 | 开发日志（tracing）英文/结构化/脱敏；用户可见文本走 catalog | 已定 | AGENTS §5（细化） |
@@ -62,5 +62,5 @@
 ## 落地入口
 
 - 硬规则：[AGENTS.md §5](../../AGENTS.md)（Tier 1 已上升）
-- 决策记录：[ADR-0008](../adr/0008-i18n-localization.md)（i18n）、[ADR-0009](../adr/0009-storage-layout.md)（存储布局）、[ADR-0010](../adr/0010-model-launcher.md)（模型启动器）、ADR-0011（事件日志前向兼容，待写）
+- 决策记录：[ADR-0008](../adr/0008-i18n-localization.md)（i18n）、[ADR-0009](../adr/0009-storage-layout.md)（存储布局）、[ADR-0010](../adr/0010-model-launcher.md)（模型启动器）、[ADR-0011](../adr/0011-event-log-forward-compat.md)（事件日志前向兼容）
 - 实现任务：[roadmap-board.md 地基（G）段](roadmap-board.md)，排在 M2 之前
