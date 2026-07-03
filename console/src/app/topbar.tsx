@@ -41,7 +41,7 @@ export function Topbar({
       </button>
 
       <div className="flex items-center gap-2">
-        <span className="grid h-7 w-7 place-items-center rounded-md bg-accent font-mono text-[13px] font-bold text-white">
+        <span className="grid h-7 w-7 place-items-center rounded-md bg-accent font-mono text-[13px] font-bold text-desktop">
           K
         </span>
         <span className="text-[15px] font-semibold tracking-[-0.01em]">Kestrel</span>
