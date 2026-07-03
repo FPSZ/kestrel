@@ -176,7 +176,8 @@ export function Sidebar({
                 <div
                   key={id}
                   className={cn(
-                    'group flex items-center gap-1 rounded-md px-2 py-1 text-[12px] transition-colors',
+                    // fixed height so the hover actions never grow / jump the row
+                    'group flex h-8 items-center gap-1 rounded-md px-2 text-[12px] transition-colors',
                     selected ? 'bg-surface-2 text-ink' : 'text-ink-3 hover:bg-surface hover:text-ink-2',
                   )}
                 >
