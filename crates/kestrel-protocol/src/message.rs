@@ -46,6 +46,10 @@ pub struct Message {
     /// 本消息回应的工具调用标识（仅 tool 角色）。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
+    /// 随 user 消息附带的图片（`data:...;base64,...` URL）。后端据此把 content
+    /// 编成 OpenAI 多模态数组；文本模型忽略。派生序列化跳过（走 backend 自定义映射）。
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub images: Vec<String>,
 }
 
 impl Message {
@@ -56,6 +60,18 @@ impl Message {
             content: content.into(),
             tool_calls: Vec::new(),
             tool_call_id: None,
+            images: Vec::new(),
+        }
+    }
+
+    /// 构造 user 消息，可带粘贴图片（多模态）。`images` 为 `data:...;base64,...` URL。
+    pub fn user(content: impl Into<String>, images: Vec<String>) -> Self {
+        Self {
+            role: Role::User,
+            content: content.into(),
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            images,
         }
     }
 
@@ -67,6 +83,7 @@ impl Message {
             content,
             tool_calls,
             tool_call_id: None,
+            images: Vec::new(),
         }
     }
 
@@ -77,6 +94,7 @@ impl Message {
             content: content.into(),
             tool_calls: Vec::new(),
             tool_call_id: Some(tool_call_id.into()),
+            images: Vec::new(),
         }
     }
 }

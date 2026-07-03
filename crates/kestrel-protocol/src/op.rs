@@ -37,6 +37,10 @@ pub enum Op {
         /// 本轮运行模式（询问/全部执行/计划）。前端可省略，默认 Ask。
         #[serde(default)]
         mode: AgentMode,
+        /// 随消息粘贴的图片（`data:image/...;base64,...` URL）。需要视觉模型才被理解；
+        /// 文本模型忽略。前端可省略，默认空。
+        #[serde(default)]
+        images: Vec<String>,
     },
     /// 批准挂起的风险动作。
     Approve {

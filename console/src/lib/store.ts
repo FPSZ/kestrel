@@ -22,7 +22,7 @@ export interface ToolBlock {
 }
 
 export type Block =
-  | { kind: 'user'; seq: number; ts?: number; text: string }
+  | { kind: 'user'; seq: number; ts?: number; text: string; images?: string[] }
   | { kind: 'assistant'; seq: number; ts?: number; text: string; reasoning?: string }
   | ToolBlock
   | { kind: 'error'; seq: number; ts?: number; message: string }
@@ -52,7 +52,7 @@ export function fold(state: ConversationState, event: KestrelEvent): Conversatio
 
   switch (p.type) {
     case 'user_input':
-      blocks.push({ kind: 'user', seq: event.seq, ts: event.ts, text: p.text })
+      blocks.push({ kind: 'user', seq: event.seq, ts: event.ts, text: p.text, images: p.images })
       turnActive = true
       break
     case 'agent_text': {

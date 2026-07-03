@@ -201,6 +201,7 @@ async fn edit_without_prior_read_is_blocked() {
             text: "edit it".to_owned(),
             think: true,
             mode: AgentMode::Auto,
+            images: Vec::new(),
         })
         .await
         .unwrap();
@@ -250,6 +251,7 @@ async fn edit_after_read_is_allowed() {
             text: "go".to_owned(),
             think: true,
             mode: AgentMode::Auto,
+            images: Vec::new(),
         })
         .await
         .unwrap();
@@ -295,6 +297,7 @@ async fn cancel_mid_tool_completes_with_cancelled() {
             text: "run".to_owned(),
             think: true,
             mode: AgentMode::Auto,
+            images: Vec::new(),
         })
         .await
         .unwrap();
@@ -348,6 +351,7 @@ async fn turn_emits_context_budget() {
             text: "hello".to_owned(),
             think: true,
             mode: AgentMode::Auto,
+            images: Vec::new(),
         })
         .await
         .unwrap();

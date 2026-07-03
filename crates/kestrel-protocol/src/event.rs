@@ -46,6 +46,10 @@ pub enum EventPayload {
     UserInput {
         /// 输入文本。
         text: String,
+        /// 随消息粘贴的图片（`data:image/...;base64,...` URL）。用于前端渲染与回放；
+        /// 旧日志无此字段时默认空（前向兼容）。
+        #[serde(default)]
+        images: Vec<String>,
     },
     /// 模型产出的文本增量（流式）。
     AgentText {

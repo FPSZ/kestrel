@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ClipboardEvent,
+  type ReactNode,
+} from 'react'
 import {
   ArrowUp,
   Loader,
@@ -9,6 +16,7 @@ import {
   MessageSquare,
   Zap,
   ClipboardList,
+  X,
 } from 'lucide-react'
 import { client } from '@/lib/client'
 import type { Block } from '@/lib/store'
@@ -23,6 +31,8 @@ import { Conversation } from './conversation'
  */
 export function ChatView({ blocks, turnActive }: { blocks: Block[]; turnActive: boolean }) {
   const [text, setText] = useState('')
+  // pasted images for the next message (base64 data URLs)
+  const [images, setImages] = useState<string[]>([])
   // think + mode persist across refreshes (localStorage) so a chosen posture sticks.
   const [think, setThink] = useState<boolean>(() => loadPref('kestrel.think', true))
   const [mode, setMode] = useState<AgentMode>(() => loadPref<AgentMode>('kestrel.mode', 'ask'))
@@ -60,11 +70,33 @@ export function ChatView({ blocks, turnActive }: { blocks: Block[]; turnActive: 
     void client.sendOp({ type: 'cancel' })
   }
 
+  // Pull image(s) out of a paste and attach them (base64) instead of pasting
+  // the OS filename text. Non-image pastes fall through to normal text paste.
+  const onPaste = (e: ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items
+    if (!items) return
+    const files: File[] = []
+    for (const it of items) {
+      if (it.kind === 'file' && it.type.startsWith('image/')) {
+        const f = it.getAsFile()
+        if (f) files.push(f)
+      }
+    }
+    if (files.length === 0) return
+    e.preventDefault()
+    for (const f of files) {
+      const reader = new FileReader()
+      reader.onload = () => {
+        if (typeof reader.result === 'string') setImages((prev) => [...prev, reader.result as string])
+      }
+      reader.readAsDataURL(f)
+    }
+  }
+
   // Enter submits. A leading "/" is a command (think/mode/stop/help) handled
   // locally and never sent to the model; everything else is a turn.
   const submit = () => {
     const t = text.trim()
-    if (!t) return
     if (t.startsWith('/')) {
       const [cmd, arg = ''] = t.slice(1).split(/\s+/)
       if (cmd === 'think') {
@@ -82,9 +114,17 @@ export function ChatView({ blocks, turnActive }: { blocks: Block[]; turnActive: 
       // unknown /command: leave the text so the user can fix it
       return
     }
+    if (!t && images.length === 0) return // nothing to send
     if (turnActive) return // a message can't start while a turn runs
-    void client.sendOp({ type: 'user_input', text: t, think, mode })
+    void client.sendOp({
+      type: 'user_input',
+      text: t,
+      think,
+      mode,
+      images: images.length ? images : undefined,
+    })
     setText('')
+    setImages([])
     atBottomRef.current = true // our own send always jumps to the bottom
   }
 
@@ -160,12 +200,34 @@ export function ChatView({ blocks, turnActive }: { blocks: Block[]; turnActive: 
         )}
 
         <div className="mx-auto max-w-3xl rounded-2xl border border-line bg-surface px-3.5 pt-3 pb-2.5 transition-colors focus-within:border-line-2">
+          {images.length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-2">
+              {images.map((src, i) => (
+                <div
+                  key={i}
+                  className="group relative h-16 w-16 overflow-hidden rounded-lg border border-line-2"
+                >
+                  <img src={src} alt="" className="h-full w-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => setImages((prev) => prev.filter((_, j) => j !== i))}
+                    aria-label={t('composer.removeImage')}
+                    title={t('composer.removeImage')}
+                    className="absolute right-0.5 top-0.5 grid h-4 w-4 place-items-center rounded-full bg-desktop/85 text-ink-2 transition-colors hover:text-ink"
+                  >
+                    <X className="h-3 w-3" strokeWidth={2.4} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
           <textarea
             ref={taRef}
             rows={2}
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={onKeyDown}
+            onPaste={onPaste}
             placeholder={t('composer.placeholder')}
             className="block max-h-56 min-h-[56px] w-full resize-none bg-transparent text-[16px] leading-relaxed text-ink placeholder:text-ink-mute focus:outline-none"
           />
@@ -201,7 +263,7 @@ export function ChatView({ blocks, turnActive }: { blocks: Block[]; turnActive: 
                 <button
                   type="button"
                   onClick={submit}
-                  disabled={!text.trim() || (turnActive && !text.startsWith('/'))}
+                  disabled={(!text.trim() && images.length === 0) || (turnActive && !text.startsWith('/'))}
                   aria-label={t('composer.send')}
                   className="focus-ring grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-accent text-desktop transition-colors hover:bg-accent-2 disabled:cursor-not-allowed disabled:opacity-40"
                 >

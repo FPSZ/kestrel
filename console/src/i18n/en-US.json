@@ -3,6 +3,7 @@
   "composer.send": "Send",
   "composer.stop": "Stop",
   "composer.stopTitle": "Interrupt the current turn (kills any running command)",
+  "composer.removeImage": "Remove image",
   "chat.working": "working",
 
   "think.title": "Thinking strength (this model supports on/off)",

@@ -87,6 +87,7 @@ mod tests {
             actor: CrewRole::Lead,
             payload: EventPayload::UserInput {
                 text: "hello".to_owned(),
+                images: Vec::new(),
             },
         };
         store.append(&session, &e).await.unwrap();

@@ -157,7 +157,21 @@ fn to_openai_message(m: &Message) -> serde_json::Value {
         Role::Assistant => "assistant",
         Role::Tool => "tool",
     };
-    let mut v = serde_json::json!({ "role": role, "content": m.content });
+    // 有粘贴图片时，content 走 OpenAI 多模态数组（text part + 若干 image_url part）；
+    // 否则保持纯字符串（文本模型与旧行为一致）。
+    let content = if m.images.is_empty() {
+        serde_json::Value::String(m.content.clone())
+    } else {
+        let mut parts = Vec::new();
+        if !m.content.is_empty() {
+            parts.push(serde_json::json!({ "type": "text", "text": m.content }));
+        }
+        for url in &m.images {
+            parts.push(serde_json::json!({ "type": "image_url", "image_url": { "url": url } }));
+        }
+        serde_json::Value::Array(parts)
+    };
+    let mut v = serde_json::json!({ "role": role, "content": content });
     if !m.tool_calls.is_empty() {
         v["tool_calls"] = serde_json::Value::Array(
             m.tool_calls

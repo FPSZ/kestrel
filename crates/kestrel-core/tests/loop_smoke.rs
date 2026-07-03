@@ -150,6 +150,7 @@ async fn plain_text_reply_completes_turn() {
             text: "hi".to_owned(),
             think: true,
             mode: AgentMode::Auto,
+            images: Vec::new(),
         })
         .await
         .unwrap();
@@ -213,6 +214,7 @@ async fn tool_call_then_result_then_completes() {
             text: "go".to_owned(),
             think: true,
             mode: AgentMode::Auto,
+            images: Vec::new(),
         })
         .await
         .unwrap();

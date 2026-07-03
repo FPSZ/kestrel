@@ -137,13 +137,21 @@ impl Agent {
 
         while let Some(op) = op_rx.recv().await {
             match op {
-                Op::UserInput { text, think, mode } => {
+                Op::UserInput {
+                    text,
+                    think,
+                    mode,
+                    images,
+                } => {
                     turn.emit(
                         CrewRole::Lead,
-                        EventPayload::UserInput { text: text.clone() },
+                        EventPayload::UserInput {
+                            text: text.clone(),
+                            images: images.clone(),
+                        },
                     )
                     .await?;
-                    history.push(Message::text(Role::User, text));
+                    history.push(Message::user(text, images));
                     // 每一轮一个新的取消令牌（Op::Cancel 触发它，贯穿流式与工具子进程）。
                     let cancel = CancellationToken::new();
                     // 一轮内的错误（后端连不上、工具基础设施故障）不杀会话：

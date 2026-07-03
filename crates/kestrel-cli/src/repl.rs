@@ -43,6 +43,7 @@ pub async fn run(
                 text: line,
                 think,
                 mode,
+                images: Vec::new(), // CLI 暂不支持图片粘贴
             })
             .await
             .is_err()

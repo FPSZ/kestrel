@@ -7,7 +7,7 @@ export type CrewRole = 'lead' | 'copilot' | 'librarian' | 'critic' | 'system'
 export type RiskLevel = 'read_only' | 'mutating' | 'destructive' | 'external'
 
 export type EventPayload =
-  | { type: 'user_input'; text: string }
+  | { type: 'user_input'; text: string; images?: string[] }
   | { type: 'agent_text'; text: string }
   | { type: 'agent_reasoning'; text: string }
   | { type: 'tool_call_requested'; call_id: string; tool: string; args: unknown }
@@ -31,7 +31,7 @@ export interface KestrelEvent {
 export type AgentMode = 'ask' | 'auto' | 'plan'
 
 export type Op =
-  | { type: 'user_input'; text: string; think?: boolean; mode?: AgentMode }
+  | { type: 'user_input'; text: string; think?: boolean; mode?: AgentMode; images?: string[] }
   | { type: 'approve'; call_id: string }
   | { type: 'deny'; call_id: string; reason: string | null }
   | { type: 'cancel' }
