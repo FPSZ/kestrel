@@ -200,7 +200,11 @@
 /* streaming style (design study): a blinking copper caret while the answer
    streams, and a shimmer sweep on the "Thinking..." label while it reasons.
    both are frozen by the prefers-reduced-motion block below. */
-.caret {
+/* streaming caret: rendered as an inline ::after on the LAST block of the
+   markdown so it sits right after the final character (not on its own line
+   below). `.stream-caret` is toggled on the wrapper only while streaming. */
+.stream-caret .md > :last-child::after {
+  content: '';
   display: inline-block;
   width: 7px;
   height: 1.05em;

@@ -84,9 +84,8 @@ function AssistantBlock({
       {block.reasoning && <Thinking text={block.reasoning} live={streaming && !block.text} />}
 
       {block.text ? (
-        <div className="[&>*:last-child]:mb-0">
+        <div className={`[&>*:last-child]:mb-0 ${streaming ? 'stream-caret' : ''}`}>
           <Markdown>{block.text}</Markdown>
-          {streaming && <span className="caret" />}
         </div>
       ) : null}
     </div>
