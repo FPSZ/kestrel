@@ -46,5 +46,17 @@
   "risk.read_only": "只读",
   "risk.mutating": "可变写入",
   "risk.destructive": "破坏性",
-  "risk.external": "外联"
+  "risk.external": "外联",
+
+  "nav.chat": "对话",
+  "nav.models": "模型",
+  "nav.settings": "设置",
+  "nav.current": "当前",
+  "nav.noSessions": "还没有对话",
+  "nav.conversations": "对话列表",
+  "nav.localMachine": "本机",
+
+  "session.loading": "加载对话中…",
+  "session.empty": "这个对话没有事件。",
+  "session.readonly": "只读回放"
 }

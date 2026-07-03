@@ -2,15 +2,17 @@ import { useState } from 'react'
 import { Topbar } from './topbar'
 import { Sidebar } from './sidebar'
 import { ChatView } from '@/features/chat/chat-view'
-import { SessionsView } from '@/features/sessions/sessions-view'
+import { SessionReplay } from '@/features/sessions/sessions-view'
 import { SettingsView } from '@/features/settings/settings-view'
+import { LauncherView } from '@/features/launcher/launcher-view'
 import { useConversation } from '@/lib/store'
 import { useHealth } from '@/lib/use-health'
+import { t } from '@/i18n'
 
-const TITLES: Record<string, string> = {
-  chat: 'Chat',
-  sessions: 'Sessions',
-  settings: 'Settings',
+const TITLE_KEYS: Record<string, string> = {
+  chat: 'nav.chat',
+  models: 'nav.models',
+  settings: 'nav.settings',
 }
 
 /**
@@ -25,27 +27,51 @@ const TITLES: Record<string, string> = {
 export function AppShell() {
   const [collapsed, setCollapsed] = useState(false)
   const [active, setActive] = useState('chat')
+  // which persisted conversation to replay; null = the live current session.
+  const [openedSession, setOpenedSession] = useState<string | null>(null)
   const convo = useConversation()
   const health = useHealth()
+
+  const navigate = (id: string) => {
+    setActive(id)
+    if (id === 'chat') setOpenedSession(null)
+  }
+  const openSession = (id: string | null) => {
+    setActive('chat')
+    // selecting the current live session (id === health.session) means "go live".
+    setOpenedSession(id && id === health?.session ? null : id)
+  }
+
+  const replaying = active === 'chat' && openedSession !== null
+  const title = replaying ? openedSession! : t(TITLE_KEYS[active] ?? 'nav.chat')
 
   return (
     <div className="h-screen overflow-hidden">
       <div className="glass-shell flex h-full flex-col overflow-hidden">
         <Topbar
-          title={TITLES[active] ?? 'Kestrel'}
+          title={title}
           collapsed={collapsed}
           onToggle={() => setCollapsed((v) => !v)}
           status={convo.status}
           model={health?.model}
         />
         <div className="flex min-h-0 flex-1 overflow-hidden">
-          <Sidebar collapsed={collapsed} active={active} onNavigate={setActive} />
+          <Sidebar
+            collapsed={collapsed}
+            active={active}
+            openedSession={openedSession}
+            currentSession={health?.session}
+            onNavigate={navigate}
+            onOpenSession={openSession}
+          />
           <main className="min-h-0 flex-1 overflow-hidden p-1.5 pl-0">
             <div className="content-bezel flex h-full min-h-0 flex-col overflow-hidden">
-              {active === 'sessions' ? (
-                <SessionsView />
+              {active === 'models' ? (
+                <LauncherView />
               ) : active === 'settings' ? (
                 <SettingsView />
+              ) : replaying ? (
+                <SessionReplay id={openedSession!} />
               ) : (
                 <ChatView blocks={convo.blocks} turnActive={convo.turnActive} />
               )}

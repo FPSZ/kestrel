@@ -17,6 +17,9 @@ tokio = { workspace = true, features = ["process", "time", "rt", "macros", "io-u
 reqwest = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
+# discover 结果要经 kestrel-server JSON 化给前端（语言中立数据）
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 [dev-dependencies]
 # 单测用真实回环 socket 假冒 /health，无需装 llama-server

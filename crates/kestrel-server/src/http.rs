@@ -5,6 +5,7 @@
 //! - `GET  /api/health`         server 存活 + model / base_url / session / workdir
 //! - `GET  /api/sessions`       列出会话 id
 //! - `GET  /api/sessions/{id}/events`  回放某会话的全部事件
+//! - `GET  /api/launcher/scan`  发现本机 llama-server 二进制候选 + 已在跑的本地引擎
 //! - `/*`（fallback）           release 下托管 `console/dist`；dev 用 Vite 代理
 
 use std::convert::Infallible;
@@ -55,6 +56,7 @@ pub fn router(state: AppState) -> Router {
         .route("/ops", post(ops))
         .route("/sessions", get(list_sessions))
         .route("/sessions/{id}/events", get(session_events))
+        .route("/launcher/scan", get(launcher_scan))
         .with_state(state);
 
     // release 下托管构建产物；dev 用 Vite 自带 server + 代理，dist 不存在也无妨。
@@ -128,4 +130,11 @@ async fn session_events(State(s): State<AppState>, Path(id): Path<String>) -> im
         Ok(events) => Json(events).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
+}
+
+/// 模型启动器扫描：发现本机 `llama-server` 二进制候选 + 已在跑的本地引擎。
+/// **只发现、不 spawn**（ADR-0010 §5）；结果是语言中立数据（路径/URL/枚举码/数字）。
+/// 无需 `State`：每次现扫，不依赖会话状态。
+async fn launcher_scan() -> impl IntoResponse {
+    Json(kestrel_runtime::scan().await)
 }

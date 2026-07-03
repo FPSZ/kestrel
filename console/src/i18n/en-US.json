@@ -46,5 +46,17 @@
   "risk.read_only": "read-only",
   "risk.mutating": "mutating",
   "risk.destructive": "destructive",
-  "risk.external": "external"
+  "risk.external": "external",
+
+  "nav.chat": "Chat",
+  "nav.models": "Models",
+  "nav.settings": "Settings",
+  "nav.current": "live",
+  "nav.noSessions": "no conversations yet",
+  "nav.conversations": "conversations",
+  "nav.localMachine": "local machine",
+
+  "session.loading": "Loading conversation…",
+  "session.empty": "This conversation has no events.",
+  "session.readonly": "read-only replay"
 }

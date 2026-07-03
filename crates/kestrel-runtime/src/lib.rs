@@ -30,11 +30,15 @@
 //!   可审计」姿态的落点。（升级为 `EventPayload` 事件待协议稳定后接入。）
 
 mod detect;
+mod discover;
 mod error;
 mod spec;
 mod supervisor;
 
 pub use detect::host_tool_available;
+pub use discover::{
+    BinaryCandidate, RunningEngine, ScanResult, discover_binaries, discover_running, scan,
+};
 pub use error::RuntimeError;
 pub use spec::{EngineSource, LaunchSpec};
 pub use supervisor::{EngineHandle, launch};
