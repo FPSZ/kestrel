@@ -162,10 +162,12 @@ async fn drain_turn(
                     println!("  [context] {used_tokens}/{n_ctx} tok (~{pct}%)");
                 }
             }
-            // CLI 无需渲染：用户输入已回显、思考增量避免刷屏、审批裁决已内联反馈。
+            // CLI 无需渲染：用户输入已回显、思考增量避免刷屏、审批裁决已内联反馈；
+            // Unknown 是前向兼容占位（ADR-0011），静默忽略。
             EventPayload::UserInput { .. }
             | EventPayload::AgentReasoning { .. }
-            | EventPayload::ApprovalResolved { .. } => {}
+            | EventPayload::ApprovalResolved { .. }
+            | EventPayload::Unknown => {}
         }
     }
     Ok(false)

@@ -254,6 +254,7 @@ fn payloads_owned(payloads: &[EventPayload]) -> Vec<&'static str> {
             EventPayload::TurnCompleted { .. } => "TurnCompleted",
             EventPayload::ContextBudget { .. } => "ContextBudget",
             EventPayload::Error { .. } => "Error",
+            EventPayload::Unknown => "Unknown",
         })
         .collect()
 }

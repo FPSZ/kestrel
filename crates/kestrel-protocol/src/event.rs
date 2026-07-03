@@ -5,6 +5,14 @@
 
 use serde::{Deserialize, Serialize};
 
+/// 事件日志的 schema 版本（ADR-0011）。
+///
+/// 前向兼容铁律（foundations #6 / AGENTS.md §5）：字段与变体**只增不改不复用**，
+/// 旧日志永远能被新代码读回。真正破坏性的形状变更（改字段含义 / 删字段 / 改序号
+/// 语义）才递增此版本并配迁移钩子。store 首次写入时把它落成目录级 `.schema_version`
+/// 标记，供未来迁移工具识别该批日志的写入版本。
+pub const EVENT_LOG_SCHEMA_VERSION: u32 = 1;
+
 /// 会话标识。
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SessionId(pub String);
@@ -124,4 +132,9 @@ pub enum EventPayload {
         /// 错误描述。
         message: String,
     },
+    /// 未知事件类型（前向兼容，ADR-0011）：由更新版本写入、本版本还不认识的 `type`。
+    /// 反序列化时落到此变体而非报错；折叠 / 渲染时忽略，保住历史其余部分不因一条
+    /// 未来事件而整段读不出。**永不主动产生**——只在读旧/新混写日志时出现。
+    #[serde(other)]
+    Unknown,
 }
