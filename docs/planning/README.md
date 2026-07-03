@@ -8,11 +8,12 @@
 
 | 文件 | 内容 | 状态 |
 | --- | --- | --- |
-| [webui-v1-plan.md](webui-v1-plan.md) | WebUI 个人版任务看板（T0-T2 优先级复选框 + 进度日志） | 进行中 |
+| [roadmap-board.md](roadmap-board.md) | 项目级执行看板：对齐 architecture.md §9，跟踪 M1→朋友版全路线图落地进度 + 待拍板创新种子 | 进行中 |
+| [foundations.md](foundations.md) | 地基约定清单：i18n 等"现在不定以后很麻烦"的横切约定（Tier 1-3 + 待拍板） | 进行中 |
 | [innovation-brainstorm.md](innovation-brainstorm.md) | 创新点候选池（4 视角综合，待评审拍板） | 待评审 |
 
 ## 纪律
 
 - 不放事实源：设计结论去 `architecture.md`，决策去 `adr/`。
 - 定案后收敛：方向选定就把结论上升，别让候选池长期与事实源并存造成分裂。
-- 命名自解释：计划类 `*-plan.md`，头脑风暴 `*-brainstorm.md`。
+- 命名自解释：执行看板 `*-board.md`，计划类 `*-plan.md`，头脑风暴 `*-brainstorm.md`。

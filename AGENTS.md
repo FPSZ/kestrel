@@ -117,6 +117,28 @@ kestrel/
 - 提交前本地跑：`cargo fmt --all` + `cargo clippy --workspace --all-targets -- -D warnings` +
   `cargo test --workspace`。CI 以同样命令外加 `cargo deny check` 作硬门槛。
 
+### 5.1 地基铁律（横切约定）
+
+这些是"现在不锁、以后回填要动几百个调用点"的横切约定。完整清单与取舍见
+[docs/planning/foundations.md](docs/planning/foundations.md)，带决策的见对应 ADR。以下为硬规则，
+违反即拒绝，与"禁 emoji""禁破前缀"同级：
+
+- **不许硬编码用户可见文本。** 一律走 i18n（`t(key, params)` + catalog），首批 zh-CN + en-US，
+  英文 key、en-US 回退。**豁免**：模型侧 wire（system prompt / 工具 schema / GBNF）保持英文且
+  逐字节稳定（铁律 1/2），不随 UI 语言切换（[ADR-0008](docs/adr/0008-i18n-localization.md)）。
+- **不许硬编码设计值。** 颜色 / 间距 / 字号 / 圆角一律进 `@theme` 设计令牌，组件只引令牌——
+  换主题 = 换令牌，不改组件（视觉版的 i18n）。
+- **事件日志语言中立 + 前向兼容。** 事件只存稳定 code + 结构化参数，不存渲染好的句子；用户
+  可见错误用稳定 `ErrorCode` + params 在边缘渲染。schema 只增不改不复用字段、容忍未知字段/变体、
+  带 `schema_version`——第一次破坏性改 `Event` 就会让所有人历史会话与全部回放 fixture 失效。
+- **core 确定性。** 禁止 wallclock / random / 直接读环境进入影响事件流的 core 路径；一切非确定性
+  作为数据在 IO 边缘捕获后再进入。这是回放测试的地基，极易被顺手破坏。
+- **密钥零泄漏。** 密钥用不可 Debug 打印的 `SecretString` 型，只从 env / OS store 取；永不写入
+  事件日志、tracing、UI、提交；显示一律脱敏（配合 §7 安全红线）。
+- **时间戳 UTC 存、边缘按 locale 格式化**，回放断言排除时间戳。
+- **日志与 UI 分家。** 开发日志（`tracing`）英文、结构化、脱敏；用户可见文本本地化。这是对上文
+  "日志英文"的细化，不是矛盾。
+
 ---
 
 ## 6. 架构与决策约定
@@ -199,6 +221,8 @@ Kestrel 能执行命令、读写文件、访问网络——它操控的是用户
 - 是否更新了相关文档、ADR、交叉引用。
 - 是否混入临时文件、会话数据、日志或敏感信息。
 - 是否违反任一设计铁律（第 2 节），尤其前缀稳定性与 token 预算。
+- 是否违反任一地基铁律（§5.1）：用户可见硬编码文本、硬编码设计值、wallclock/random 进 core
+  事件路径、密钥可能进日志/事件/UI/提交、事件 schema 破坏性变更。
 - 依赖方向是否合规（`cargo deny check` 是否通过）。
 - 是否本地跑过 fmt / clippy / test。
 - 若涉及架构或选型，是否落了 ADR、说明了取舍与失败模式。
@@ -225,5 +249,6 @@ Kestrel 能执行命令、读写文件、访问网络——它操控的是用户
 ## 修订记录
 
 | 版本 | 日期 | 变更 |
-|---|---|---|
+| --- | --- | --- |
 | v1 | 2026-07-02 | 初稿：确立项目定位、设计铁律、目录/代码/文档约定、安全红线、Git 规范、AI 协作流程、事实优先级 |
+| v2 | 2026-07-03 | 新增 §5.1 地基铁律（i18n / 设计令牌 / 事件日志前向兼容 / core 确定性 / 密钥 / 时间戳 / 日志分家），配套 ADR-0008 与 docs/planning/foundations.md |
