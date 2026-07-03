@@ -117,18 +117,26 @@ async fn events(
 }
 
 async fn list_sessions(State(s): State<AppState>) -> impl IntoResponse {
-    let mut ids = Vec::new();
+    // 按文件修改时间倒序：最近活跃的对话排在最上面（前端据此展示）。
+    let mut entries: Vec<(std::time::SystemTime, String)> = Vec::new();
     if let Ok(mut rd) = tokio::fs::read_dir(&s.sessions_dir).await {
         while let Ok(Some(entry)) = rd.next_entry().await {
             let p = entry.path();
             if p.extension().and_then(|e| e.to_str()) == Some("jsonl")
                 && let Some(stem) = p.file_stem().and_then(|st| st.to_str())
             {
-                ids.push(stem.to_owned());
+                let mtime = entry
+                    .metadata()
+                    .await
+                    .ok()
+                    .and_then(|m| m.modified().ok())
+                    .unwrap_or(std::time::UNIX_EPOCH);
+                entries.push((mtime, stem.to_owned()));
             }
         }
     }
-    ids.sort();
+    entries.sort_by(|a, b| b.0.cmp(&a.0)); // 新 -> 旧
+    let ids: Vec<String> = entries.into_iter().map(|(_, id)| id).collect();
     Json(ids)
 }
 
