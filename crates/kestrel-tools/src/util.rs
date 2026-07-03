@@ -77,6 +77,13 @@ pub(crate) fn str_arg<'a>(args: &'a serde_json::Value, key: &str) -> Result<&'a 
         .ok_or_else(|| format!("missing required string arg: {key}"))
 }
 
+/// 从 JSON 参数取一个可选字符串字段（缺失或空串视作未提供）。
+pub(crate) fn opt_str_arg<'a>(args: &'a serde_json::Value, key: &str) -> Option<&'a str> {
+    args.get(key)
+        .and_then(serde_json::Value::as_str)
+        .filter(|s| !s.is_empty())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

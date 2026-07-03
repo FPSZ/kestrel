@@ -184,3 +184,37 @@ fn build_command(command: &str) -> tokio::process::Command {
     cmd.args(["-c", command]);
     cmd
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn risk_of(cmd: &str) -> RiskLevel {
+        ShellTool::default().risk(&serde_json::json!({ "command": cmd }))
+    }
+
+    #[test]
+    fn destructive_commands_classified_high() {
+        assert_eq!(risk_of("rm -rf build"), RiskLevel::Destructive);
+        assert_eq!(risk_of("Remove-Item -Recurse x"), RiskLevel::Destructive);
+        assert_eq!(risk_of("mkfs.ext4 /dev/sdb"), RiskLevel::Destructive);
+    }
+
+    #[test]
+    fn network_commands_classified_external() {
+        assert_eq!(risk_of("curl https://example.com"), RiskLevel::External);
+        assert_eq!(risk_of("git push origin main"), RiskLevel::External);
+    }
+
+    #[test]
+    fn plain_commands_classified_mutating() {
+        assert_eq!(risk_of("cargo build"), RiskLevel::Mutating);
+        assert_eq!(risk_of("ls -la"), RiskLevel::Mutating);
+    }
+
+    #[test]
+    fn classification_is_case_insensitive() {
+        assert_eq!(risk_of("RM -RF /tmp/x"), RiskLevel::Destructive);
+        assert_eq!(risk_of("CURL http://x"), RiskLevel::External);
+    }
+}
