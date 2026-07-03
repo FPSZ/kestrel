@@ -41,3 +41,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: EmbarkStudios/cargo-deny-action@v2
+
+  console:
+    name: console (i18n gate + typecheck + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: console
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-audit --no-fund
+      # 地基 #1：硬编码 UI 文本门禁（无翻译的 CJK 直接卡 CI，ADR-0008）。
+      - run: npm run lint:i18n
+      - run: npm run build
