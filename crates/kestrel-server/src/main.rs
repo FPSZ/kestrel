@@ -256,7 +256,10 @@ async fn assemble_agent(
         store,
         permission,
         AgentConfig {
-            system_prompt: SYSTEM_PROMPT.to_owned(),
+            system_prompt: format!(
+                "{SYSTEM_PROMPT}{}",
+                kestrel_tools::environment_block(&workdir)
+            ),
             workdir,
             max_tool_output: 8_192,
             n_ctx,

@@ -171,6 +171,14 @@ impl Tool for ShellTool {
     }
 }
 
+/// shell 工具实际调用的解释器描述。与下面 `build_command` 的 cfg 分支同源：
+/// 二者必须在同一文件、同一 cfg 条件下，保证 system prompt 里对 shell 的声明
+/// 不与真正执行命令的进程漂移（否则模型会照着错误的 shell 生成命令）。
+#[cfg(windows)]
+pub const SHELL_DESC: &str = "Windows PowerShell (powershell.exe, v5.1 syntax)";
+#[cfg(not(windows))]
+pub const SHELL_DESC: &str = "/bin/sh (POSIX shell)";
+
 #[cfg(windows)]
 fn build_command(command: &str) -> tokio::process::Command {
     let mut cmd = tokio::process::Command::new("powershell");
