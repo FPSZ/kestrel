@@ -17,3 +17,6 @@ profiles/*.local.toml
 *.swp
 Thumbs.db
 .DS_Store
+
+# 其他（设计研究稿，不入库）
+design/
