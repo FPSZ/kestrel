@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, Copy, Cpu, FolderOpen, RefreshCw, Square } from 'lucide-react'
+import { Check, Copy, Cpu, FolderOpen, RefreshCw, Square, SlidersHorizontal } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { tl } from './strings'
 
@@ -23,6 +23,22 @@ type EngineStatus = {
   model: string
   error: string
   logs: string[]
+}
+
+// Per-model tunables (mirrors kestrel-store ModelProfile). Held as strings for form
+// binding; converted to the profile wire shape (numbers/array, blanks omitted) on save.
+type Draft = { n_ctx: string; gpu_layers: string; port: string; max_tokens: string; extra_args: string }
+const DEFAULT_DRAFT: Draft = { n_ctx: '', gpu_layers: 'auto', port: '', max_tokens: '', extra_args: '' }
+
+/** A draft -> the profile wire body (blank fields omitted so they fall back to defaults). */
+function toProfile(d: Draft) {
+  return {
+    n_ctx: d.n_ctx.trim() ? Number(d.n_ctx) : undefined,
+    gpu_layers: d.gpu_layers || undefined,
+    port: d.port.trim() ? Number(d.port) : undefined,
+    max_tokens: d.max_tokens.trim() ? Number(d.max_tokens) : undefined,
+    extra_args: d.extra_args.trim() ? d.extra_args.trim().split(/\s+/) : undefined,
+  }
 }
 
 const DIR_KEY = 'kestrel.modelsDir'
@@ -53,10 +69,13 @@ export function LauncherView() {
   const [busy, setBusy] = useState(false)
   const [apiError, setApiError] = useState(false)
   const [selectedBin, setSelectedBin] = useState('')
-  const [ctx, setCtx] = useState('')
-  const [gpu, setGpu] = useState('auto')
   const [pending, setPending] = useState('') // model path currently being launched
   const [copied, setCopied] = useState('')
+  // per-model settings: which row's panel is open, each model's editable draft, and a
+  // transient "saved" flash. Drafts are lazily hydrated from the backend profile on open.
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const [drafts, setDrafts] = useState<Record<string, Draft>>({})
+  const [saved, setSaved] = useState('')
 
   const loadStatus = useCallback(async () => {
     try {
@@ -126,9 +145,58 @@ export function LauncherView() {
     void scanNow(dir)
   }
 
+  const draftOf = (path: string): Draft => drafts[path] ?? DEFAULT_DRAFT
+  const setField = (path: string, k: keyof Draft, v: string) =>
+    setDrafts((d) => ({ ...d, [path]: { ...(d[path] ?? DEFAULT_DRAFT), [k]: v } }))
+
+  // toggle a model's settings panel; hydrate its draft from the saved profile the first time.
+  const toggleSettings = useCallback(
+    async (m: ModelFile) => {
+      setExpanded((cur) => (cur === m.path ? null : m.path))
+      if (drafts[m.path]) return
+      let next = DEFAULT_DRAFT
+      try {
+        const res = await fetch(`/api/launcher/profile?model=${encodeURIComponent(m.name)}`)
+        if (res.ok) {
+          const p = (await res.json()) as Partial<{
+            n_ctx: number; gpu_layers: string; port: number; max_tokens: number; extra_args: string[]
+          }>
+          next = {
+            n_ctx: p.n_ctx != null ? String(p.n_ctx) : '',
+            gpu_layers: p.gpu_layers ?? 'auto',
+            port: p.port != null ? String(p.port) : '',
+            max_tokens: p.max_tokens != null ? String(p.max_tokens) : '',
+            extra_args: (p.extra_args ?? []).join(' '),
+          }
+        }
+      } catch {
+        /* profile is best-effort; fall back to defaults */
+      }
+      setDrafts((d) => (d[m.path] ? d : { ...d, [m.path]: next }))
+    },
+    [drafts],
+  )
+
+  const saveProfile = async (m: ModelFile) => {
+    const d = drafts[m.path]
+    if (!d) return
+    try {
+      await fetch('/api/launcher/profile', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ model: m.name, ...toProfile(d) }),
+      })
+      setSaved(m.path)
+      window.setTimeout(() => setSaved((s) => (s === m.path ? '' : s)), 1500)
+    } catch {
+      /* best-effort persistence */
+    }
+  }
+
   const loadModel = async (m: ModelFile) => {
     if (!selectedBin) return
     setPending(m.path)
+    const p = toProfile(draftOf(m.path))
     try {
       await fetch('/api/launcher/launch', {
         method: 'POST',
@@ -138,8 +206,11 @@ export function LauncherView() {
           bin: selectedBin,
           model_path: m.path,
           model: m.name,
-          n_ctx: ctx.trim() ? Number(ctx) : 32768,
-          gpu_layers: gpu,
+          n_ctx: p.n_ctx ?? 32768,
+          gpu_layers: p.gpu_layers ?? 'auto',
+          port: p.port ?? 8080,
+          extra_args: p.extra_args ?? [],
+          max_tokens: p.max_tokens ?? 0, // 0 = no generation cap
         }),
       })
       await loadStatus()
@@ -235,33 +306,6 @@ export function LauncherView() {
               <span className="text-warn">{tl('launcher.bin.none')}</span>
             )}
           </div>
-          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11.5px] text-ink-mute">
-            <label className="flex items-center gap-1.5">
-              <span>{tl('launcher.opt.ctx')}</span>
-              <input
-                value={ctx}
-                onChange={(e) => setCtx(e.target.value.replace(/[^0-9]/g, ''))}
-                placeholder="32768"
-                inputMode="numeric"
-                className="focus-ring w-20 rounded border border-line bg-surface px-1.5 py-0.5 font-mono text-ink-3 placeholder:text-ink-mute"
-              />
-            </label>
-            <label className="flex items-center gap-1.5">
-              <span>{tl('launcher.opt.gpu')}</span>
-              <select
-                value={gpu}
-                onChange={(e) => setGpu(e.target.value)}
-                className="rounded border border-line bg-surface px-1.5 py-0.5 font-mono text-ink-3 focus:outline-none"
-              >
-                <option value="auto" className="bg-bezel">
-                  auto
-                </option>
-                <option value="max" className="bg-bezel">
-                  max
-                </option>
-              </select>
-            </label>
-          </div>
         </div>
 
         {/* Local models */}
@@ -281,38 +325,66 @@ export function LauncherView() {
           </div>
         ) : (
           <div className="flex flex-col gap-1.5">
-            {list.map((m) => (
-              <div
-                key={m.path}
-                className="flex items-center gap-3 rounded-lg border border-line bg-surface px-3 py-2.5 transition-colors hover:border-line-2"
-              >
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-accent/12 text-accent-ink">
-                  <Cpu className="h-[18px] w-[18px]" strokeWidth={1.7} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-[13.5px] font-medium text-ink" title={m.path}>
-                    {m.name}
-                  </div>
-                  <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-                    {m.arch && <Pill tone="plain">{m.arch}</Pill>}
-                    {m.params && <Pill tone="plain">{m.params}</Pill>}
-                    {m.quant && <Pill tone="accent">{m.quant}</Pill>}
-                  </div>
-                </div>
-                <span className="shrink-0 whitespace-nowrap font-mono text-[12px] text-ink-mute">
-                  {fmtBytes(m.size_bytes)}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => void loadModel(m)}
-                  disabled={!canLoad || pending === m.path}
-                  title={canLoad ? undefined : tl('launcher.needBin')}
-                  className="focus-ring shrink-0 rounded-md bg-accent px-3.5 py-1.5 text-[12.5px] font-semibold text-desktop transition-colors hover:bg-accent-2 disabled:cursor-not-allowed disabled:opacity-40"
+            {list.map((m) => {
+              const open = expanded === m.path
+              return (
+                <div
+                  key={m.path}
+                  className="overflow-hidden rounded-lg border border-line bg-surface transition-colors hover:border-line-2"
                 >
-                  {pending === m.path ? tl('launcher.loadingBtn') : tl('launcher.load')}
-                </button>
-              </div>
-            ))}
+                  <div className="flex items-center gap-3 px-3 py-2.5">
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-accent/12 text-accent-ink">
+                      <Cpu className="h-[18px] w-[18px]" strokeWidth={1.7} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[13.5px] font-medium text-ink" title={m.path}>
+                        {m.name}
+                      </div>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                        {m.arch && <Pill tone="plain">{m.arch}</Pill>}
+                        {m.params && <Pill tone="plain">{m.params}</Pill>}
+                        {m.quant && <Pill tone="accent">{m.quant}</Pill>}
+                      </div>
+                    </div>
+                    <span className="shrink-0 whitespace-nowrap font-mono text-[12px] text-ink-mute">
+                      {fmtBytes(m.size_bytes)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => void toggleSettings(m)}
+                      aria-label={tl('launcher.settings')}
+                      title={tl('launcher.settings')}
+                      aria-expanded={open}
+                      className={cn(
+                        'focus-ring grid h-8 w-8 shrink-0 place-items-center rounded-md border transition-colors',
+                        open
+                          ? 'border-accent/45 bg-accent/10 text-accent-ink'
+                          : 'border-line text-ink-3 hover:bg-surface-2 hover:text-ink',
+                      )}
+                    >
+                      <SlidersHorizontal className="h-[15px] w-[15px]" strokeWidth={1.9} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void loadModel(m)}
+                      disabled={!canLoad || pending === m.path}
+                      title={canLoad ? undefined : tl('launcher.needBin')}
+                      className="focus-ring shrink-0 rounded-md bg-accent px-3.5 py-1.5 text-[12.5px] font-semibold text-desktop transition-colors hover:bg-accent-2 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {pending === m.path ? tl('launcher.loadingBtn') : tl('launcher.load')}
+                    </button>
+                  </div>
+                  {open && (
+                    <ModelSettings
+                      draft={draftOf(m.path)}
+                      saved={saved === m.path}
+                      onField={(k, v) => setField(m.path, k, v)}
+                      onSave={() => void saveProfile(m)}
+                    />
+                  )}
+                </div>
+              )
+            })}
           </div>
         )}
 
@@ -425,6 +497,115 @@ function LogsPanel({ logs }: { logs: string[] }) {
         ))}
       </div>
     </div>
+  )
+}
+
+/** Shared input class for the per-model settings fields. */
+const INP =
+  'focus-ring w-full rounded border border-line bg-surface px-2 py-1 font-mono text-[12px] text-ink-2 placeholder:text-ink-mute focus:outline-none'
+
+/** Per-model tunables panel: launch flags (ctx/gpu/port/extra) + generation cap (max_tokens).
+ *  Edits persist to the model's backend profile on blur; max_tokens also drives the live
+ *  agent cap when this model is launched. */
+function ModelSettings({
+  draft,
+  saved,
+  onField,
+  onSave,
+}: {
+  draft: Draft
+  saved: boolean
+  onField: (k: keyof Draft, v: string) => void
+  onSave: () => void
+}) {
+  const numOnly = (v: string) => v.replace(/[^0-9]/g, '')
+  return (
+    <div className="border-t border-line bg-bezel/40 px-3 py-3">
+      <div className="mb-2.5 flex items-center gap-1.5 text-[11px] font-medium text-ink-3">
+        <SlidersHorizontal className="h-3 w-3" strokeWidth={2} />
+        {tl('launcher.settings')}
+        {saved && <span className="ml-1 text-ok">{tl('launcher.saved')}</span>}
+      </div>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 sm:grid-cols-4">
+        <FieldLabel label={tl('launcher.opt.ctx')}>
+          <input
+            value={draft.n_ctx}
+            onChange={(e) => onField('n_ctx', numOnly(e.target.value))}
+            onBlur={onSave}
+            placeholder="32768"
+            inputMode="numeric"
+            className={INP}
+          />
+        </FieldLabel>
+        <FieldLabel label={tl('launcher.opt.gpu')}>
+          <select
+            value={draft.gpu_layers}
+            onChange={(e) => onField('gpu_layers', e.target.value)}
+            onBlur={onSave}
+            className={cn(INP, 'cursor-pointer')}
+          >
+            <option value="auto" className="bg-bezel">
+              auto
+            </option>
+            <option value="max" className="bg-bezel">
+              max
+            </option>
+          </select>
+        </FieldLabel>
+        <FieldLabel label={tl('launcher.opt.port')}>
+          <input
+            value={draft.port}
+            onChange={(e) => onField('port', numOnly(e.target.value))}
+            onBlur={onSave}
+            placeholder="8080"
+            inputMode="numeric"
+            className={INP}
+          />
+        </FieldLabel>
+        <FieldLabel label={tl('launcher.opt.maxtok')} hint={tl('launcher.opt.hint.unlimited')}>
+          <input
+            value={draft.max_tokens}
+            onChange={(e) => onField('max_tokens', numOnly(e.target.value))}
+            onBlur={onSave}
+            placeholder="8192"
+            inputMode="numeric"
+            className={INP}
+          />
+        </FieldLabel>
+        <FieldLabel label={tl('launcher.opt.extra')} className="col-span-2 sm:col-span-4">
+          <input
+            value={draft.extra_args}
+            onChange={(e) => onField('extra_args', e.target.value)}
+            onBlur={onSave}
+            placeholder={tl('launcher.opt.extra.ph')}
+            spellCheck={false}
+            className={INP}
+          />
+        </FieldLabel>
+      </div>
+    </div>
+  )
+}
+
+function FieldLabel({
+  label,
+  hint,
+  className,
+  children,
+}: {
+  label: string
+  hint?: string
+  className?: string
+  children: React.ReactNode
+}) {
+  return (
+    <label className={cn('flex flex-col gap-1', className)}>
+      <span className="flex items-center gap-1 text-[11px] text-ink-mute">
+        {label}
+        {hint && <span className="opacity-70">· {hint}</span>}
+      </span>
+      {children}
+    </label>
   )
 }
 
