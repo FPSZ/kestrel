@@ -9,6 +9,7 @@
 
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
@@ -16,8 +17,20 @@ use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use kestrel_runtime::{EngineHandle, LaunchSpec, launch};
+use kestrel_store::ModelProfile;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
+
+/// 启动器路由的共享状态：引擎生命周期 + 每模型参数档案目录 + 实时生成上限句柄。
+#[derive(Clone)]
+struct LauncherState {
+    /// 引擎生命周期（spawn/stop/status）。
+    engine: SharedLauncher,
+    /// 每模型 profile 读写目录（`<data>/profiles`）。
+    profiles_dir: Arc<PathBuf>,
+    /// agent 的实时 max_tokens 共享句柄（换模型时就地更新，0=不限）。
+    max_tokens: Arc<AtomicU32>,
+}
 
 /// 引擎生命周期状态（语言中立枚举码，前端据此渲染）。
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
@@ -70,7 +83,11 @@ impl Launcher {
             base_url: self.base_url.clone(),
             model: self.model.clone(),
             error: self.error.clone(),
-            logs: self.handle.as_ref().map(EngineHandle::recent_logs).unwrap_or_default(),
+            logs: self
+                .handle
+                .as_ref()
+                .map(EngineHandle::recent_logs)
+                .unwrap_or_default(),
         }
     }
 }
@@ -153,6 +170,25 @@ struct LaunchRequest {
     extra_args: Vec<String>,
     #[serde(default)]
     model: String,
+    /// 连该模型后的实时生成上限（`0`/缺省=不限）。写入共享句柄，agent 下一轮生效。
+    #[serde(default)]
+    max_tokens: u32,
+}
+
+/// `GET /api/launcher/profile` 的查询参数。
+#[derive(Debug, Deserialize)]
+struct ProfileQuery {
+    /// 模型标识（名字或路径；服务端清洗成安全文件名 key）。
+    #[serde(default)]
+    model: String,
+}
+
+/// `POST /api/launcher/profile` 的请求体：模型标识 + 档案字段（扁平）。
+#[derive(Debug, Deserialize)]
+struct ProfileSaveRequest {
+    model: String,
+    #[serde(flatten)]
+    profile: ModelProfile,
 }
 
 fn default_source() -> String {
@@ -168,15 +204,21 @@ fn default_gpu_layers() -> String {
     "auto".to_owned()
 }
 
-/// 构建启动器路由（自带全新 [`SharedLauncher`] 状态）。挂 `/api/launcher/*`。
-pub fn router() -> Router {
-    let shared: SharedLauncher = Arc::new(Mutex::new(Launcher::default()));
+/// 构建启动器路由。`profiles_dir` = 每模型 profile 读写目录；`max_tokens` = agent 的
+/// 实时生成上限共享句柄（换模型时就地更新）。挂 `/api/launcher/*`。
+pub fn router(profiles_dir: PathBuf, max_tokens: Arc<AtomicU32>) -> Router {
+    let state = LauncherState {
+        engine: Arc::new(Mutex::new(Launcher::default())),
+        profiles_dir: Arc::new(profiles_dir),
+        max_tokens,
+    };
     let inner = Router::new()
         .route("/launcher/models", get(models))
         .route("/launcher/status", get(status))
         .route("/launcher/launch", post(launch_engine))
         .route("/launcher/stop", post(stop_engine))
-        .with_state(shared);
+        .route("/launcher/profile", get(get_profile).post(save_profile))
+        .with_state(state);
     Router::new().nest("/api", inner)
 }
 
@@ -206,8 +248,8 @@ async fn models(Query(q): Query<ModelsQuery>) -> impl IntoResponse {
 }
 
 /// 当前引擎状态快照（顺带崩溃检测：以为在跑但进程已退 -> 翻 Failed，保留日志）。
-async fn status(State(shared): State<SharedLauncher>) -> impl IntoResponse {
-    let mut g = shared.lock().await;
+async fn status(State(st): State<LauncherState>) -> impl IntoResponse {
+    let mut g = st.engine.lock().await;
     if g.state == EngineState::Running {
         let dead = g.handle.as_mut().is_none_or(|h| !h.is_alive());
         if dead {
@@ -222,7 +264,7 @@ async fn status(State(shared): State<SharedLauncher>) -> impl IntoResponse {
 
 /// 启动一个引擎（后台任务，立即 202；前端轮询 status 看 loading -> running）。
 async fn launch_engine(
-    State(shared): State<SharedLauncher>,
+    State(st): State<LauncherState>,
     Json(req): Json<LaunchRequest>,
 ) -> impl IntoResponse {
     let spec = match LaunchSpec::from_parts(
@@ -238,12 +280,33 @@ async fn launch_engine(
         Ok(spec) => spec,
         Err(e) => return (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
     };
-    tokio::spawn(start(shared, spec, req.model));
+    // 换模型即更新 agent 的实时生成上限（该模型 profile 的 max_tokens，0=不限）。
+    st.max_tokens.store(req.max_tokens, Ordering::Relaxed);
+    tokio::spawn(start(st.engine, spec, req.model));
     StatusCode::ACCEPTED.into_response()
 }
 
 /// 停止当前引擎。
-async fn stop_engine(State(shared): State<SharedLauncher>) -> impl IntoResponse {
-    stop(&shared).await;
+async fn stop_engine(State(st): State<LauncherState>) -> impl IntoResponse {
+    stop(&st.engine).await;
     StatusCode::ACCEPTED
+}
+
+/// `GET /api/launcher/profile?model=<key>`：读某模型的参数档案（缺省回默认）。
+async fn get_profile(
+    State(st): State<LauncherState>,
+    Query(q): Query<ProfileQuery>,
+) -> impl IntoResponse {
+    Json(ModelProfile::load(st.profiles_dir.as_path(), &q.model))
+}
+
+/// `POST /api/launcher/profile`：写某模型的参数档案。
+async fn save_profile(
+    State(st): State<LauncherState>,
+    Json(req): Json<ProfileSaveRequest>,
+) -> impl IntoResponse {
+    match req.profile.save(st.profiles_dir.as_path(), &req.model) {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
 }

@@ -30,6 +30,7 @@ pub use config::{BackendConfig, Config};
 pub use jsonl::JsonlStore;
 pub use loadout::{Loadout, LoadoutMetadata, ModelSpec};
 pub use paths::Layout;
+pub use profile::{ModelProfile, profile_key};
 
 /// 存储层错误。
 #[derive(Debug, thiserror::Error)]

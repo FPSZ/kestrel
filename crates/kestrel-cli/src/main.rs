@@ -109,7 +109,10 @@ async fn main() -> anyhow::Result<()> {
             workdir: workdir.clone(),
             max_tool_output: 8_192,
             n_ctx,
-            max_tokens: (config.backend.max_tokens > 0).then_some(config.backend.max_tokens),
+            // CLI 无启动器：静态上限（0=不限）。server 版是可被启动器就地更新的共享值。
+            max_tokens: std::sync::Arc::new(std::sync::atomic::AtomicU32::new(
+                config.backend.max_tokens,
+            )),
             limits: TurnLimits {
                 max_iterations: config.max_iterations,
             },

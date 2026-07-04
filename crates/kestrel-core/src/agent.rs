@@ -11,6 +11,7 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 use futures::StreamExt;
 use kestrel_protocol::{
@@ -54,8 +55,10 @@ pub struct AgentConfig {
     pub max_tool_output: usize,
     /// 后端真实上下文长度（探测所得，喂给 context ledger 记账；禁止硬编码）。
     pub n_ctx: u32,
-    /// 单次生成 token 上限（`None`=不设限）。掐断失控生成（推理模型思考死循环）。
-    pub max_tokens: Option<u32>,
+    /// 单次生成 token 上限，**实时可调**（`0`=不设限）。掐断失控生成（推理模型思考
+    /// 死循环）。用 `Arc<AtomicU32>` 而非静态值：模型启动器换模型时可就地更新，agent
+    /// 下一轮即生效，无需重启（每个模型的 profile 有各自的上限）。
+    pub max_tokens: Arc<AtomicU32>,
     /// 迭代约束。
     pub limits: TurnLimits,
 }
@@ -271,11 +274,13 @@ impl Agent {
         cancel: &CancellationToken,
         think: bool,
     ) -> Result<(String, Vec<ToolCall>), CoreError> {
+        // 实时读生成上限（模型启动器可能已就地更新为当前模型 profile 的值）。0=不限。
+        let cap = self.config.max_tokens.load(Ordering::Relaxed);
         let req = CompletionRequest {
             tools: self.tools.specs(),
             messages: history.to_vec(),
             think,
-            max_tokens: self.config.max_tokens,
+            max_tokens: (cap != 0).then_some(cap),
         };
         let mut stream = self.backend.stream(req).await?;
         let mut text = String::new();

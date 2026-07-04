@@ -144,7 +144,7 @@ fn agent_with(tools: ToolSet, script: Vec<Vec<CompletionChunk>>, store: MemStore
             workdir: std::env::temp_dir(),
             max_tool_output: 4096,
             n_ctx: 8192,
-            max_tokens: None,
+            max_tokens: std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0)),
             limits: TurnLimits::default(),
         },
     )

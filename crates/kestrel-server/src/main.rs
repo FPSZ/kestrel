@@ -10,7 +10,7 @@ mod launcher;
 
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::AtomicU64;
+use std::sync::atomic::{AtomicU32, AtomicU64};
 use std::sync::{Arc, RwLock};
 
 use anyhow::Context;
@@ -67,7 +67,17 @@ async fn main() -> anyhow::Result<()> {
     // 解析引擎：有 loadout 就按清单自启 / 委托 / 连接（模型启动器，ADR-0010），
     // 否则现状纯连接。启动器在此阻塞到 /health 就绪。
     let engine = resolve_engine(&config, layout.config_file()).await?;
-    let agent = assemble_agent(&engine, &config, workdir.clone(), store.clone()).await;
+    // 生成上限的实时共享句柄：agent 每轮读它，模型启动器换模型时就地更新为该模型
+    // profile 的 max_tokens（连这个模型时自动应用，无需重启）。0=不限。
+    let max_tokens = Arc::new(AtomicU32::new(config.backend.max_tokens));
+    let agent = assemble_agent(
+        &engine,
+        &config,
+        workdir.clone(),
+        store.clone(),
+        max_tokens.clone(),
+    )
+    .await;
 
     let (op_tx, op_rx) = mpsc::channel::<Op>(32);
     let (event_tx, mut event_rx) = mpsc::channel::<Event>(256);
@@ -103,7 +113,8 @@ async fn main() -> anyhow::Result<()> {
     };
 
     // 模型启动器路由自带状态，一行 merge 进来（挂 /api/launcher/*，不改 http.rs）。
-    let app = http::router(state).merge(launcher::router());
+    // 传入 profiles 目录（每模型参数档案读写）与 max_tokens 共享句柄（启动时就地更新）。
+    let app = http::router(state).merge(launcher::router(layout.profiles_dir(), max_tokens));
     let addr: SocketAddr = BIND_ADDR.parse().context("parse bind addr")?;
     let listener = tokio::net::TcpListener::bind(addr)
         .await
@@ -215,6 +226,7 @@ async fn assemble_agent(
     config: &Config,
     workdir: PathBuf,
     store: Arc<JsonlStore>,
+    max_tokens: Arc<AtomicU32>,
 ) -> Agent {
     let backend = kestrel_backend::build(
         &engine.kind,
@@ -263,7 +275,7 @@ async fn assemble_agent(
             workdir,
             max_tool_output: 8_192,
             n_ctx,
-            max_tokens: (config.backend.max_tokens > 0).then_some(config.backend.max_tokens),
+            max_tokens,
             limits: TurnLimits {
                 max_iterations: config.max_iterations,
             },
